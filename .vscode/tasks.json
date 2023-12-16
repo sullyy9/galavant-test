@@ -1,0 +1,52 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Release All",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "build",
+                "--release"
+            ],
+            "problemMatcher": [],
+        },
+        {
+            "label": "Build Debug All",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "build",
+            ],
+            "problemMatcher": [],
+        },
+        {
+            "label": "Run Release CLI",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--release"
+            ],
+            "problemMatcher": [],
+        },
+        {
+            "label": "Run Debug CLI",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run",
+            ],
+            "problemMatcher": [],
+        },
+        {
+            "label": "Run Tests All",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "test",
+            ],
+            "problemMatcher": [],
+        },
+    ]
+}
