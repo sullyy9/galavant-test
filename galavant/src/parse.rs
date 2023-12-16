@@ -1,70 +1,8 @@
 use chumsky::{prelude::*, text::Character};
 
+use super::expression::{Expr, ExprKind};
+
 type Error = chumsky::error::Simple<char>;
-
-////////////////////////////////////////////////////////////////
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
-pub enum Expr {
-    String(String),
-    UInt(u32),
-
-    HPMode,
-    Comment(Box<Expr>),
-    Wait(Box<Expr>),
-    OpenDialog(Box<Expr>),
-    WaitDialog(Box<Expr>),
-    Flush,
-    Protocol,
-    Print(Vec<Expr>),
-    SetTimeFormat(Box<Expr>),
-    SetTime,
-    SetOption {
-        option: Box<Expr>,
-        setting: Box<Expr>,
-    },
-    TCUClose(Box<Expr>),
-    TCUOpen(Box<Expr>),
-    TCUTest {
-        channel: Box<Expr>,
-        min: Box<Expr>,
-        max: Box<Expr>,
-        retries: Box<Expr>,
-        message: Box<Expr>,
-    },
-    PrinterSet(Box<Expr>),
-    PrinterTest {
-        channel: Box<Expr>,
-        min: Box<Expr>,
-        max: Box<Expr>,
-        retries: Box<Expr>,
-        message: Box<Expr>,
-    },
-    IssueTest(Box<Expr>), // Unused.
-    TestResult {
-        // Unused.
-        min: Box<Expr>,
-        max: Box<Expr>,
-        message: Box<Expr>,
-    },
-    USBOpen,
-    USBClose,
-    USBPrint(Vec<Expr>),
-    USBSetTimeFormat(Box<Expr>),
-    USBSetTime,
-    USBSetOption {
-        option: Box<Expr>,
-        setting: Box<Expr>,
-    },
-    USBPrinterSet(Box<Expr>),
-    USBPrinterTest {
-        channel: Box<Expr>,
-        min: Box<Expr>,
-        max: Box<Expr>,
-        retries: Box<Expr>,
-        message: Box<Expr>,
-    },
-}
 
 ////////////////////////////////////////////////////////////////
 
@@ -185,40 +123,46 @@ pub fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
         .ignored()
         .repeated();
 
-    let string = just('"')
-        .ignore_then(take_until(just('"')))
-        .map(|(s, _)| Expr::String(String::from_iter(s)));
+    // TODO: Allow escaped string delimeters within strings. (Don't think it was allowed on original
+    // runtest but would be nice to have).
+    let string = filter(|c| *c != '"')
+        .repeated()
+        .delimited_by(just('"'), just('"'))
+        .map(String::from_iter)
+        .map(ExprKind::String);
 
-    let uint_dec = text::int(10).map(|s: String| Expr::UInt(s.parse().unwrap()));
+    let uint_dec = text::int(10).map(|s: String| ExprKind::UInt(s.parse().unwrap()));
     let uint_hex = just("$")
         .ignore_then(text::int(16))
-        .map(|s: String| Expr::UInt(u32::from_str_radix(&s, 16).unwrap()));
+        .map(|s: String| ExprKind::UInt(u32::from_str_radix(&s, 16).unwrap()));
 
     let uint = uint_dec.or(uint_hex);
 
-    let expr = choice((string, uint)).padded_by(whitespace);
+    let expr = choice((string, uint))
+        .map_with_span(Expr::from_kind_and_span)
+        .padded_by(whitespace);
     let multi_expr = expr.separated_by(whitespace);
 
     ////////////////
 
-    let hpmode = text::keyword("HPMODE").to(Expr::HPMode);
-    let comment = command_with_param("COMMENT", expr).map(Expr::Comment);
-    let wait = command_with_param("WAIT", expr).map(Expr::Wait);
-    let opendialog = command_with_param("OPENDIALOG", expr).map(Expr::OpenDialog);
-    let waitdialog = command_with_param("WAITDIALOG", expr).map(Expr::WaitDialog);
-    let flush = text::keyword("FLUSH").to(Expr::Flush);
-    let protocol = text::keyword("PROTOCOL").to(Expr::Protocol);
-    let print = command_with_params("PRINT", multi_expr).map(Expr::Print);
-    let settimeformat = command_with_param("SETTIMEFORMAT", expr).map(Expr::SetTimeFormat);
-    let settime = text::keyword("SETTIME").to(Expr::SetTime);
+    let hpmode = text::keyword("HPMODE").to(ExprKind::HPMode);
+    let comment = command_with_param("COMMENT", expr).map(ExprKind::Comment);
+    let wait = command_with_param("WAIT", expr).map(ExprKind::Wait);
+    let opendialog = command_with_param("OPENDIALOG", expr).map(ExprKind::OpenDialog);
+    let waitdialog = command_with_param("WAITDIALOG", expr).map(ExprKind::WaitDialog);
+    let flush = text::keyword("FLUSH").to(ExprKind::Flush);
+    let protocol = text::keyword("PROTOCOL").to(ExprKind::Protocol);
+    let print = command_with_params("PRINT", multi_expr).map(ExprKind::Print);
+    let settimeformat = command_with_param("SETTIMEFORMAT", expr).map(ExprKind::SetTimeFormat);
+    let settime = text::keyword("SETTIME").to(ExprKind::SetTime);
     let setoption = command_with_2_params("SETOPTION", expr, expr)
-        .map(|(option, setting)| Expr::SetOption { option, setting });
+        .map(|(option, setting)| ExprKind::SetOption { option, setting });
 
-    let tcuclose = command_with_param("TCUCLOSE", expr).map(Expr::TCUClose);
-    let tcuopen = command_with_param("TCUOPEN", expr).map(Expr::TCUOpen);
+    let tcuclose = command_with_param("TCUCLOSE", expr).map(ExprKind::TCUClose);
+    let tcuopen = command_with_param("TCUOPEN", expr).map(ExprKind::TCUOpen);
     let tcutest =
         command_with_5_params("TCUTEST", expr).map(|(channel, min, max, retries, message)| {
-            Expr::TCUTest {
+            ExprKind::TCUTest {
                 channel,
                 min,
                 max,
@@ -227,10 +171,10 @@ pub fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
             }
         });
 
-    let printerset = command_with_param("PRINTERSET", expr).map(Expr::PrinterSet);
+    let printerset = command_with_param("PRINTERSET", expr).map(ExprKind::PrinterSet);
     let printertest =
         command_with_5_params("PRINTERTEST", expr).map(|(channel, min, max, retries, message)| {
-            Expr::PrinterTest {
+            ExprKind::PrinterTest {
                 channel,
                 min,
                 max,
@@ -239,17 +183,18 @@ pub fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
             }
         });
 
-    let usbopen = text::keyword("USBOPEN").to(Expr::USBOpen);
-    let usbclose = text::keyword("USBCLOSE").to(Expr::USBClose);
-    let usbprint = command_with_params("USBPRINT", multi_expr).map(Expr::USBPrint);
-    let usbsettimeformat = command_with_param("USBSETTIMEFORMAT", expr).map(Expr::USBSetTimeFormat);
-    let usbsettime = text::keyword("USBSETTIME").to(Expr::USBSetTime);
+    let usbopen = text::keyword("USBOPEN").to(ExprKind::USBOpen);
+    let usbclose = text::keyword("USBCLOSE").to(ExprKind::USBClose);
+    let usbprint = command_with_params("USBPRINT", multi_expr).map(ExprKind::USBPrint);
+    let usbsettimeformat =
+        command_with_param("USBSETTIMEFORMAT", expr).map(ExprKind::USBSetTimeFormat);
+    let usbsettime = text::keyword("USBSETTIME").to(ExprKind::USBSetTime);
     let usbsetoption = command_with_2_params("USBSETOPTION", expr, expr)
-        .map(|(option, setting)| Expr::USBSetOption { option, setting });
+        .map(|(option, setting)| ExprKind::USBSetOption { option, setting });
 
-    let usbprinterset = command_with_param("USBPRINTERSET", expr).map(Expr::USBPrinterSet);
+    let usbprinterset = command_with_param("USBPRINTERSET", expr).map(ExprKind::USBPrinterSet);
     let usbprintertest = command_with_5_params("USBPRINTERTEST", expr).map(
-        |(channel, min, max, retries, message)| Expr::USBPrinterTest {
+        |(channel, min, max, retries, message)| ExprKind::USBPrinterTest {
             channel,
             min,
             max,
@@ -284,6 +229,7 @@ pub fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
         usbprinterset,
         usbprintertest,
     ))
+    .map_with_span(Expr::from_kind_and_span)
     .padded_by(whitespace);
 
     ////////////////
@@ -296,49 +242,49 @@ pub fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
 
 ////////////////////////////////////////////////////////////////
 
-pub fn eval(expr: &Expr) -> Result<(), String> {
+pub fn eval(expr: &ExprKind) -> Result<(), String> {
     match expr {
-        Expr::String(_) => todo!(),
-        Expr::UInt(_) => todo!(),
+        ExprKind::String(_) => todo!(),
+        ExprKind::UInt(_) => todo!(),
 
-        Expr::HPMode => todo!(),
-        Expr::Comment(_) => todo!(),
-        Expr::Wait(_) => todo!(),
-        Expr::OpenDialog(_) => todo!(),
-        Expr::WaitDialog(_) => todo!(),
-        Expr::Flush => todo!(),
-        Expr::Protocol => todo!(),
-        Expr::Print(_) => todo!(),
-        Expr::SetTimeFormat(_) => todo!(),
-        Expr::SetTime => todo!(),
-        Expr::SetOption { option, setting } => todo!(),
-        Expr::TCUClose(_) => todo!(),
-        Expr::TCUOpen(_) => todo!(),
-        Expr::TCUTest {
+        ExprKind::HPMode => todo!(),
+        ExprKind::Comment(_) => todo!(),
+        ExprKind::Wait(_) => todo!(),
+        ExprKind::OpenDialog(_) => todo!(),
+        ExprKind::WaitDialog(_) => todo!(),
+        ExprKind::Flush => todo!(),
+        ExprKind::Protocol => todo!(),
+        ExprKind::Print(_) => todo!(),
+        ExprKind::SetTimeFormat(_) => todo!(),
+        ExprKind::SetTime => todo!(),
+        ExprKind::SetOption { option, setting } => todo!(),
+        ExprKind::TCUClose(_) => todo!(),
+        ExprKind::TCUOpen(_) => todo!(),
+        ExprKind::TCUTest {
             channel,
             min,
             max,
             retries,
             message,
         } => todo!(),
-        Expr::PrinterSet(_) => todo!(),
-        Expr::PrinterTest {
+        ExprKind::PrinterSet(_) => todo!(),
+        ExprKind::PrinterTest {
             channel,
             min,
             max,
             retries,
             message,
         } => todo!(),
-        Expr::IssueTest(_) => todo!(),
-        Expr::TestResult { min, max, message } => todo!(),
-        Expr::USBOpen => todo!(),
-        Expr::USBClose => todo!(),
-        Expr::USBPrint(_) => todo!(),
-        Expr::USBSetTimeFormat(_) => todo!(),
-        Expr::USBSetTime => todo!(),
-        Expr::USBSetOption { option, setting } => todo!(),
-        Expr::USBPrinterSet(_) => todo!(),
-        Expr::USBPrinterTest {
+        ExprKind::IssueTest(_) => todo!(),
+        ExprKind::TestResult { min, max, message } => todo!(),
+        ExprKind::USBOpen => todo!(),
+        ExprKind::USBClose => todo!(),
+        ExprKind::USBPrint(_) => todo!(),
+        ExprKind::USBSetTimeFormat(_) => todo!(),
+        ExprKind::USBSetTime => todo!(),
+        ExprKind::USBSetOption { option, setting } => todo!(),
+        ExprKind::USBPrinterSet(_) => todo!(),
+        ExprKind::USBPrinterTest {
             channel,
             min,
             max,
@@ -360,91 +306,93 @@ mod tests {
 
     #[test]
     fn test_parse_commands() {
-        let script = "
-            HPMODE
-            COMMENT \"Test\"
-            WAIT 1234
-            OPENDIALOG \"Hello\"
-            WAITDIALOG \"PLEASE WAIT\"
-            FLUSH
-            PROTOCOL
-            PRINT \"print me\"
-            SETTIMEFORMAT $A6
-            SETTIME
-            SETOPTION 4 6
-            TCUCLOSE 4
-            TCUOPEN $F
-            TCUTEST 5 12000 56000 0 \"error\"
-            PRINTERSET 1
-            PRINTERTEST 4 133 987 5 \"error message\"
-            USBOPEN
-            USBCLOSE
-            USBPRINT \"Look at me I can print\"
-            USBSETTIMEFORMAT 5
-            USBSETTIME
-            USBSETOPTION 5 9
-            USBPRINTERSET 6
-            USBPRINTERTEST 4 133 987 5 \"error message\"
-        ";
+        let script = r#"
+HPMODE
+COMMENT "Test"
+WAIT 1234
+OPENDIALOG "Hello"
+WAITDIALOG "PLEASE WAIT"
+FLUSH
+PROTOCOL
+PRINT "print me"
+SETTIMEFORMAT $A6
+SETTIME
+SETOPTION 4 6
+TCUCLOSE 4
+TCUOPEN $F
+TCUTEST 5 12000 56000 0 "error"
+PRINTERSET 1
+PRINTERTEST 4 133 987 5 "error message"
+USBOPEN
+USBCLOSE
+USBPRINT "Look at me I can print"
+USBSETTIMEFORMAT 5
+USBSETTIME
+USBSETOPTION 5 9
+USBPRINTERSET 6
+USBPRINTERTEST 4 133 987 5 "error message"
+        "#;
 
         let parsed_ast = parser().parse(script);
 
         let expected_ast = [
-            Expr::HPMode,
-            Expr::Comment(Box::new(Expr::String(String::from("Test")))),
-            Expr::Wait(Box::new(Expr::UInt(1234))),
-            Expr::OpenDialog(Box::new(Expr::String(String::from("Hello")))),
-            Expr::WaitDialog(Box::new(Expr::String(String::from("PLEASE WAIT")))),
-            Expr::Flush,
-            Expr::Protocol,
-            Expr::Print(vec![Expr::String(String::from("print me"))]),
-            Expr::SetTimeFormat(Box::new(Expr::UInt(0xA6))),
-            Expr::SetTime,
-            Expr::SetOption {
-                option: Box::new(Expr::UInt(4)),
-                setting: Box::new(Expr::UInt(6)),
+            ExprKind::HPMode,
+            ExprKind::Comment(Box::new(Expr::from_str_default("Test"))),
+            ExprKind::Wait(Box::new(Expr::from_uint_default(1234))),
+            ExprKind::OpenDialog(Box::new(Expr::from_str_default("Hello"))),
+            ExprKind::WaitDialog(Box::new(Expr::from_str_default("PLEASE WAIT"))),
+            ExprKind::Flush,
+            ExprKind::Protocol,
+            ExprKind::Print(vec![Expr::from_str_default("print me")]),
+            ExprKind::SetTimeFormat(Box::new(Expr::from_uint_default(0xA6))),
+            ExprKind::SetTime,
+            ExprKind::SetOption {
+                option: Box::new(Expr::from_uint_default(4)),
+                setting: Box::new(Expr::from_uint_default(6)),
             },
-            Expr::TCUClose(Box::new(Expr::UInt(4))),
-            Expr::TCUOpen(Box::new(Expr::UInt(0xF))),
-            Expr::TCUTest {
-                channel: Box::new(Expr::UInt(5)),
-                min: Box::new(Expr::UInt(12000)),
-                max: Box::new(Expr::UInt(56000)),
-                retries: Box::new(Expr::UInt(0)),
-                message: Box::new(Expr::String(String::from("error"))),
+            ExprKind::TCUClose(Box::new(Expr::from_uint_default(4))),
+            ExprKind::TCUOpen(Box::new(Expr::from_uint_default(0xF))),
+            ExprKind::TCUTest {
+                channel: Box::new(Expr::from_uint_default(5)),
+                min: Box::new(Expr::from_uint_default(12000)),
+                max: Box::new(Expr::from_uint_default(56000)),
+                retries: Box::new(Expr::from_uint_default(0)),
+                message: Box::new(Expr::from_str_default("error")),
             },
-            Expr::PrinterSet(Box::new(Expr::UInt(1))),
-            Expr::PrinterTest {
-                channel: Box::new(Expr::UInt(4)),
-                min: Box::new(Expr::UInt(133)),
-                max: Box::new(Expr::UInt(987)),
-                retries: Box::new(Expr::UInt(5)),
-                message: Box::new(Expr::String(String::from("error message"))),
+            ExprKind::PrinterSet(Box::new(Expr::from_uint_default(1))),
+            ExprKind::PrinterTest {
+                channel: Box::new(Expr::from_uint_default(4)),
+                min: Box::new(Expr::from_uint_default(133)),
+                max: Box::new(Expr::from_uint_default(987)),
+                retries: Box::new(Expr::from_uint_default(5)),
+                message: Box::new(Expr::from_str_default("error message")),
             },
-            Expr::USBOpen,
-            Expr::USBClose,
-            Expr::USBPrint(vec![Expr::String(String::from("Look at me I can print"))]),
-            Expr::USBSetTimeFormat(Box::new(Expr::UInt(5))),
-            Expr::USBSetTime,
-            Expr::USBSetOption {
-                option: Box::new(Expr::UInt(5)),
-                setting: Box::new(Expr::UInt(9)),
+            ExprKind::USBOpen,
+            ExprKind::USBClose,
+            ExprKind::USBPrint(vec![Expr::from_str_default("Look at me I can print")]),
+            ExprKind::USBSetTimeFormat(Box::new(Expr::from_uint_default(5))),
+            ExprKind::USBSetTime,
+            ExprKind::USBSetOption {
+                option: Box::new(Expr::from_uint_default(5)),
+                setting: Box::new(Expr::from_uint_default(9)),
             },
-            Expr::USBPrinterSet(Box::new(Expr::UInt(6))),
-            Expr::USBPrinterTest {
-                channel: Box::new(Expr::UInt(4)),
-                min: Box::new(Expr::UInt(133)),
-                max: Box::new(Expr::UInt(987)),
-                retries: Box::new(Expr::UInt(5)),
-                message: Box::new(Expr::String(String::from("error message"))),
+            ExprKind::USBPrinterSet(Box::new(Expr::from_uint_default(6))),
+            ExprKind::USBPrinterTest {
+                channel: Box::new(Expr::from_uint_default(4)),
+                min: Box::new(Expr::from_uint_default(133)),
+                max: Box::new(Expr::from_uint_default(987)),
+                retries: Box::new(Expr::from_uint_default(5)),
+                message: Box::new(Expr::from_str_default("error message")),
             },
         ];
+        let expected_ast = expected_ast.map(Expr::from_kind_default);
 
         match parsed_ast {
             Ok(ast) => {
                 for (i, (actual_expr, expected_expr)) in
                     std::iter::zip(ast, expected_ast).enumerate()
                 {
+                    println!("{:?}", actual_expr);
                     assert_eq!(actual_expr, expected_expr, "At expression {}", i);
                 }
             }
