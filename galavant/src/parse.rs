@@ -1,8 +1,15 @@
 use chumsky::{prelude::*, text::Character};
 
-use super::expression::{Expr, ExprKind};
+use crate::{
+    error::Error,
+    expression::{Expr, ExprKind},
+};
 
-type Error = chumsky::error::Simple<char>;
+////////////////////////////////////////////////////////////////
+
+pub fn parse_from_str(script: &str) -> Result<Vec<Expr>, Vec<Error>> {
+    parser().parse(script)
+}
 
 ////////////////////////////////////////////////////////////////
 
@@ -118,7 +125,7 @@ where
 
 ////////////////////////////////////////////////////////////////
 
-pub fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
+fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
     let whitespace = filter(|c: &char| c.is_inline_whitespace())
         .ignored()
         .repeated();

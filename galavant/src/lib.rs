@@ -1,3 +1,4 @@
+mod error;
 mod expression;
 mod parse;
 
@@ -5,7 +6,9 @@ mod parse;
 // exports
 ////////////////////////////////////////////////////////////////
 
-pub use chumsky::Parser;
-pub use parse::parser;
+pub use crate::{
+    error::Error,
+    parse::parse_from_str,
+};
 
 ////////////////////////////////////////////////////////////////
