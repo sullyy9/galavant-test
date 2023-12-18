@@ -1,4 +1,5 @@
 mod error;
+mod evaluate;
 mod expression;
 mod parse;
 
@@ -8,6 +9,7 @@ mod parse;
 
 pub use crate::{
     error::Error,
+    evaluate::{evaluate, FrontendRequest, Dialog},
     parse::parse_from_str,
 };
 

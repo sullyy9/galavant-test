@@ -249,60 +249,6 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
 
 ////////////////////////////////////////////////////////////////
 
-pub fn eval(expr: &ExprKind) -> Result<(), String> {
-    match expr {
-        ExprKind::String(_) => todo!(),
-        ExprKind::UInt(_) => todo!(),
-
-        ExprKind::HPMode => todo!(),
-        ExprKind::Comment(_) => todo!(),
-        ExprKind::Wait(_) => todo!(),
-        ExprKind::OpenDialog(_) => todo!(),
-        ExprKind::WaitDialog(_) => todo!(),
-        ExprKind::Flush => todo!(),
-        ExprKind::Protocol => todo!(),
-        ExprKind::Print(_) => todo!(),
-        ExprKind::SetTimeFormat(_) => todo!(),
-        ExprKind::SetTime => todo!(),
-        ExprKind::SetOption { option, setting } => todo!(),
-        ExprKind::TCUClose(_) => todo!(),
-        ExprKind::TCUOpen(_) => todo!(),
-        ExprKind::TCUTest {
-            channel,
-            min,
-            max,
-            retries,
-            message,
-        } => todo!(),
-        ExprKind::PrinterSet(_) => todo!(),
-        ExprKind::PrinterTest {
-            channel,
-            min,
-            max,
-            retries,
-            message,
-        } => todo!(),
-        ExprKind::IssueTest(_) => todo!(),
-        ExprKind::TestResult { min, max, message } => todo!(),
-        ExprKind::USBOpen => todo!(),
-        ExprKind::USBClose => todo!(),
-        ExprKind::USBPrint(_) => todo!(),
-        ExprKind::USBSetTimeFormat(_) => todo!(),
-        ExprKind::USBSetTime => todo!(),
-        ExprKind::USBSetOption { option, setting } => todo!(),
-        ExprKind::USBPrinterSet(_) => todo!(),
-        ExprKind::USBPrinterTest {
-            channel,
-            min,
-            max,
-            retries,
-            message,
-        } => todo!(),
-    }
-}
-
-////////////////////////////////////////////////////////////////
-
 #[cfg(test)]
 mod tests {
     use std::io::Write;
@@ -423,6 +369,24 @@ USBPRINTERTEST 4 133 987 5 "error message"
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_single_command() {
+        let script = r#"COMMENT "This is a comment 1234""#;
+
+        match parse_from_str(script) {
+            Ok(exprs) => {
+                assert_eq!(exprs.len(), 1);
+                assert_eq!(
+                    exprs[0],
+                    Expr::from_kind_default(ExprKind::Comment(Box::new(Expr::from_str_default(
+                        "This is a comment 1234"
+                    ))))
+                )
+            }
+            Err(errors) => panic!("{:?}", errors),
         }
     }
 }
