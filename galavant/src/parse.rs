@@ -1,4 +1,4 @@
-use chumsky::{prelude::*, text::Character};
+use chumsky::{combinator::Repeated, prelude::*, text::Character};
 
 use crate::{
     error::Error,
@@ -9,6 +9,20 @@ use crate::{
 
 pub fn parse_from_str(script: &str) -> Result<Vec<Expr>, Vec<Error>> {
     parser().parse(script)
+}
+
+////////////////////////////////////////////////////////////////
+
+/// Parser that matches inline whitepsace only. i.e. Whitespace not part of a newline. This differs
+/// from chumsky's builtin whitespace parser which does match newline characters.
+///
+/// # Returns
+/// A parser mathcing inline whitespace.
+///   
+fn whitespace() -> Repeated<impl Parser<char, (), Error = Error> + Copy + Clone> {
+    filter(|c: &char| c.is_inline_whitespace())
+        .ignored()
+        .repeated()
 }
 
 ////////////////////////////////////////////////////////////////
@@ -30,7 +44,10 @@ fn command_with_param<'a, E>(
 where
     E: Parser<char, Expr, Error = Error> + 'a,
 {
-    return text::keyword(cmd).ignore_then(param_parser).map(Box::from);
+    return text::keyword(cmd)
+        .then(whitespace())
+        .ignore_then(param_parser)
+        .map(Box::from);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -56,6 +73,7 @@ where
     E: Parser<char, Expr, Error = Error> + 'a,
 {
     return text::keyword(cmd)
+        .then(whitespace())
         .ignore_then(parser1)
         .then(parser2)
         .map(|(p1, p2)| (Box::from(p1), Box::from(p2)));
@@ -85,6 +103,7 @@ where
     E: Parser<char, Expr, Error = Error> + Clone + 'a,
 {
     return text::keyword(cmd)
+        .then(whitespace())
         .ignore_then(parser.clone())
         .then(parser.clone())
         .then(parser.clone())
@@ -120,16 +139,14 @@ fn command_with_params<'a, E>(
 where
     E: Parser<char, Vec<Expr>, Error = Error> + 'a,
 {
-    text::keyword(cmd).ignore_then(param_parser)
+    text::keyword(cmd)
+        .then(whitespace())
+        .ignore_then(param_parser)
 }
 
 ////////////////////////////////////////////////////////////////
 
 fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
-    let whitespace = filter(|c: &char| c.is_inline_whitespace())
-        .ignored()
-        .repeated();
-
     // TODO: Allow escaped string delimeters within strings. (Don't think it was allowed on original
     // runtest but would be nice to have).
     let string = filter(|c| *c != '"')
@@ -147,8 +164,8 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
 
     let expr = choice((string, uint))
         .map_with_span(Expr::from_kind_and_span)
-        .padded_by(whitespace);
-    let multi_expr = expr.separated_by(whitespace);
+        .padded_by(whitespace());
+    let multi_expr = expr.separated_by(whitespace());
 
     ////////////////
 
@@ -237,7 +254,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
         usbprintertest,
     ))
     .map_with_span(Expr::from_kind_and_span)
-    .padded_by(whitespace);
+    .padded_by(whitespace());
 
     ////////////////
 
