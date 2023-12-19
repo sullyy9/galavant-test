@@ -154,3 +154,40 @@ impl std::cmp::PartialEq for Expr {
 }
 
 ////////////////////////////////////////////////////////////////
+
+impl ExprKind {
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            ExprKind::String(_) => "String",
+            ExprKind::UInt(_) => "Unsigned Integer",
+            ExprKind::HPMode => "Command: 'HPMODE'",
+            ExprKind::Comment(_) => "Command: 'COMMENT'",
+            ExprKind::Wait(_) => "Command: 'WAIT'",
+            ExprKind::OpenDialog(_) => "Command: 'OPENDIALOG'",
+            ExprKind::WaitDialog(_) => "Command: 'WAITDIALOG'",
+            ExprKind::Flush => "Command: 'FLUSH'",
+            ExprKind::Protocol => "Command: 'PROTOCOL'",
+            ExprKind::Print(_) => "Command: 'PRINT'",
+            ExprKind::SetTimeFormat(_) => "Command: 'SETTIMEFORMAT'",
+            ExprKind::SetTime => "Command: 'SETTIME'",
+            ExprKind::SetOption { .. } => "Command: 'SETOPTION'",
+            ExprKind::TCUClose(_) => "Command: 'TCUCLOSE'",
+            ExprKind::TCUOpen(_) => "Command: 'TCUOPEN'",
+            ExprKind::TCUTest { .. } => "Command: 'TCUTEST'",
+            ExprKind::PrinterSet(_) => "Command: 'PRINTERSET'",
+            ExprKind::PrinterTest { .. } => "Command: 'PRINTERTEST'",
+            ExprKind::IssueTest(_) => "Command: 'ISSUETEST'",
+            ExprKind::TestResult { .. } => "Command: 'TESTRESULT'",
+            ExprKind::USBOpen => "Command: 'USBOPEN'",
+            ExprKind::USBClose => "Command: 'USBCLOSE'",
+            ExprKind::USBPrint(_) => "Command: 'USBPRINT'",
+            ExprKind::USBSetTimeFormat(_) => "Command: 'USBSETTIMEFORMAT'",
+            ExprKind::USBSetTime => "Command: 'USBSETTIME'",
+            ExprKind::USBSetOption { .. } => "Command: 'USBSETOPTION'",
+            ExprKind::USBPrinterSet(_) => "Command: 'USBPRINTERSET'",
+            ExprKind::USBPrinterTest { .. } => "Command: 'USBPRINTERTEST'",
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////

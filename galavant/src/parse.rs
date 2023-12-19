@@ -13,6 +13,12 @@ pub fn parse_from_str(script: &str) -> Result<Vec<Expr>, Vec<Error>> {
 
 ////////////////////////////////////////////////////////////////
 
+fn default<T: Default>() -> T {
+    Default::default()
+}
+
+////////////////////////////////////////////////////////////////
+
 /// Parser that matches inline whitepsace only. i.e. Whitespace not part of a newline. This differs
 /// from chumsky's builtin whitespace parser which does match newline characters.
 ///
@@ -167,23 +173,67 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
         .padded_by(whitespace());
     let multi_expr = expr.separated_by(whitespace());
 
+    let string_arg = expr.validate(|arg, span, emit| {
+        if !matches!(arg.kind(), ExprKind::String(_)) {
+            let expected = [&ExprKind::String(default())];
+            let found = arg.kind();
+
+            emit(Error::argument_type(span, expected, found).with_help(
+                "If the argument was intended to be a string it should be delimited by \"\"",
+            ))
+        }
+
+        arg
+    });
+
+    let uint_arg = expr.validate(|arg, span, emit| {
+        if !matches!(arg.kind(), ExprKind::UInt(_)) {
+            let expected = [&ExprKind::UInt(default())];
+            let found = arg.kind();
+
+            let mut error = Error::argument_type(span, expected, found);
+
+            if let ExprKind::String(string) = arg.kind() {
+                if string.chars().all(|c| c.is_numeric()) {
+                    error = error.with_help("If the argument was intended to be an unsigned integer, try removing the enclosing \"\"");
+                } else if string.starts_with('$') && string.chars().skip(1).all(|c| c.is_ascii_hexdigit()) {
+                    error = error.with_help("If the argument was intended to be a hex unsigned integer, try removing the enclosing \"\"");
+                }
+            }
+            
+            emit(error)
+        }
+
+        arg
+    });
+
+    let byte_arg = uint_arg.validate(|arg, span, emit| {
+        if let ExprKind::UInt(value) = arg.kind() {
+            if *value > 255 {
+                emit(Error::argument_value_size(span, *value, (0, 255)))
+            }
+        }
+
+        arg
+    });
+
     ////////////////
 
     let hpmode = text::keyword("HPMODE").to(ExprKind::HPMode);
-    let comment = command_with_param("COMMENT", expr).map(ExprKind::Comment);
-    let wait = command_with_param("WAIT", expr).map(ExprKind::Wait);
-    let opendialog = command_with_param("OPENDIALOG", expr).map(ExprKind::OpenDialog);
-    let waitdialog = command_with_param("WAITDIALOG", expr).map(ExprKind::WaitDialog);
+    let comment = command_with_param("COMMENT", string_arg).map(ExprKind::Comment);
+    let wait = command_with_param("WAIT", uint_arg).map(ExprKind::Wait);
+    let opendialog = command_with_param("OPENDIALOG", string_arg).map(ExprKind::OpenDialog);
+    let waitdialog = command_with_param("WAITDIALOG", string_arg).map(ExprKind::WaitDialog);
     let flush = text::keyword("FLUSH").to(ExprKind::Flush);
     let protocol = text::keyword("PROTOCOL").to(ExprKind::Protocol);
     let print = command_with_params("PRINT", multi_expr).map(ExprKind::Print);
-    let settimeformat = command_with_param("SETTIMEFORMAT", expr).map(ExprKind::SetTimeFormat);
+    let settimeformat = command_with_param("SETTIMEFORMAT", byte_arg).map(ExprKind::SetTimeFormat);
     let settime = text::keyword("SETTIME").to(ExprKind::SetTime);
-    let setoption = command_with_2_params("SETOPTION", expr, expr)
+    let setoption = command_with_2_params("SETOPTION", byte_arg, byte_arg)
         .map(|(option, setting)| ExprKind::SetOption { option, setting });
 
-    let tcuclose = command_with_param("TCUCLOSE", expr).map(ExprKind::TCUClose);
-    let tcuopen = command_with_param("TCUOPEN", expr).map(ExprKind::TCUOpen);
+    let tcuclose = command_with_param("TCUCLOSE", byte_arg).map(ExprKind::TCUClose);
+    let tcuopen = command_with_param("TCUOPEN", byte_arg).map(ExprKind::TCUOpen);
     let tcutest =
         command_with_5_params("TCUTEST", expr).map(|(channel, min, max, retries, message)| {
             ExprKind::TCUTest {
@@ -195,7 +245,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
             }
         });
 
-    let printerset = command_with_param("PRINTERSET", expr).map(ExprKind::PrinterSet);
+    let printerset = command_with_param("PRINTERSET", byte_arg).map(ExprKind::PrinterSet);
     let printertest =
         command_with_5_params("PRINTERTEST", expr).map(|(channel, min, max, retries, message)| {
             ExprKind::PrinterTest {
@@ -211,12 +261,12 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
     let usbclose = text::keyword("USBCLOSE").to(ExprKind::USBClose);
     let usbprint = command_with_params("USBPRINT", multi_expr).map(ExprKind::USBPrint);
     let usbsettimeformat =
-        command_with_param("USBSETTIMEFORMAT", expr).map(ExprKind::USBSetTimeFormat);
+        command_with_param("USBSETTIMEFORMAT", byte_arg).map(ExprKind::USBSetTimeFormat);
     let usbsettime = text::keyword("USBSETTIME").to(ExprKind::USBSetTime);
-    let usbsetoption = command_with_2_params("USBSETOPTION", expr, expr)
+    let usbsetoption = command_with_2_params("USBSETOPTION", byte_arg, byte_arg)
         .map(|(option, setting)| ExprKind::USBSetOption { option, setting });
 
-    let usbprinterset = command_with_param("USBPRINTERSET", expr).map(ExprKind::USBPrinterSet);
+    let usbprinterset = command_with_param("USBPRINTERSET", byte_arg).map(ExprKind::USBPrinterSet);
     let usbprintertest = command_with_5_params("USBPRINTERTEST", expr).map(
         |(channel, min, max, retries, message)| ExprKind::USBPrinterTest {
             channel,
@@ -270,7 +320,9 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
 mod tests {
     use std::io::Write;
 
-    use ariadne::{Label, Report, ReportKind, Source};
+    use ariadne::Source;
+
+    use crate::error::Reason;
 
     use super::*;
 
@@ -369,12 +421,11 @@ USBPRINTERTEST 4 133 987 5 "error message"
             Err(errors) => {
                 if let Some(error) = errors.first() {
                     let report = {
-                        let report = Report::build(ReportKind::Error, (), 0)
-                            .with_label(Label::new(error.span()).with_message(error))
-                            .finish();
-
                         let mut string = Vec::new();
-                        report.write(Source::from(script), string.by_ref()).unwrap();
+                        error
+                            .to_report()
+                            .write(Source::from(script), string.by_ref())
+                            .unwrap();
 
                         String::from_utf8(string)
                     };
@@ -404,6 +455,113 @@ USBPRINTERTEST 4 133 987 5 "error message"
                 )
             }
             Err(errors) => panic!("{:?}", errors),
+        }
+    }
+
+    #[test]
+    fn test_invalid_string_type_arg() {
+        let script = r#"COMMENT 1234"#;
+
+        let parsed_ast = parser().parse(script);
+
+        match parsed_ast {
+            Ok(_) => {}
+            Err(errors) => {
+                assert_eq!(errors.len(), 1);
+
+                #[allow(unreachable_code)]
+                if let Some(error) = errors.first() {
+                    assert!(matches!(error.reason(), Reason::ArgType { .. }));
+                    return;
+
+                    
+                    let report = {
+                        let report = error.to_report();
+                        let mut string = Vec::new();
+
+                        report.write(Source::from(script), string.by_ref()).unwrap();
+
+                        String::from_utf8(string)
+                    };
+                    
+                    if let Ok(report) = report {
+                        panic!("Parser returned error: {}", report)
+                    } else {
+                        panic!("Parser returned unknown error: {:#?}", report)
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_invalid_uint_type_arg() {
+        let script = r#"WAIT "$F54A""#;
+
+        let parsed_ast = parser().parse(script);
+
+        match parsed_ast {
+            Ok(_) => {}
+            Err(errors) => {
+                assert_eq!(errors.len(), 1);
+                
+                #[allow(unreachable_code)]
+                if let Some(error) = errors.first() {
+                    assert!(matches!(error.reason(), Reason::ArgType { .. }));
+                    return;
+
+                    
+                    let report = {
+                        let report = error.to_report();
+                        let mut string = Vec::new();
+
+                        report.write(Source::from(script), string.by_ref()).unwrap();
+
+                        String::from_utf8(string)
+                    };
+                    
+                    if let Ok(report) = report {
+                        panic!("Parser returned error: {}", report)
+                    } else {
+                        panic!("Parser returned unknown error: {:#?}", report)
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_invalid_uint_value_arg() {
+        let script = r#"TCUCLOSE 256"#;
+
+        let parsed_ast = parser().parse(script);
+
+        match parsed_ast {
+            Ok(_) => {}
+            Err(errors) => {
+                assert_eq!(errors.len(), 1);
+                
+                #[allow(unreachable_code)]
+                if let Some(error) = errors.first() {
+                    assert!(matches!(error.reason(), Reason::ArgValue { .. }));
+                    return;
+
+                    let report = {
+                        let report = error.to_report();
+                        let mut string = Vec::new();
+
+                        report.write(Source::from(script), string.by_ref()).unwrap();
+
+                        String::from_utf8(string)
+                    };
+                    
+                    if let Ok(report) = report {
+                        panic!("Parser returned error: {}", report)
+                    } else {
+                        panic!("Parser returned unknown error: {:#?}", report)
+                    }
+                }
+            }
         }
     }
 }
