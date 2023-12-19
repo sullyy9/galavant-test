@@ -169,3 +169,24 @@ fn test_print() {
 }
 
 ////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_settimeformat() {
+    let script = r#"SETTIMEFORMAT 5"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0],
+                Ok(Request::TCUTransmit("P051B00746605".as_bytes().to_owned()))
+            )
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////

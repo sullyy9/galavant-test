@@ -34,6 +34,15 @@ pub enum Dialog {
 
 ////////////////////////////////////////////////////////////////
 
+/// Format a byte into a hex representation using ascii characters. Return those characters as
+/// bytes.
+///
+fn tcu_format_byte(byte: u8) -> Vec<u8> {
+    format!("{byte:02X}").into_bytes()
+}
+
+////////////////////////////////////////////////////////////////
+
 pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
     type Request = FrontendRequest;
 
@@ -90,23 +99,38 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
                 } else if let ExprKind::UInt(uint) = arg.kind() {
                     debug_assert!(*uint <= 255);
                     arg_bytes.push(*uint as u8);
+                } else {
+                    panic!("Invalid PRINT arg {arg:?}")
                 }
             }
 
             // Each byte needs to be transformed into an ascii hex representation.
-            let arg_bytes: Vec<u8> = arg_bytes
-                .iter()
-                .flat_map(|b| format!("{b:02X}").into_bytes())
-                .collect();
+            let arg_bytes: Vec<u8> = arg_bytes.into_iter().flat_map(tcu_format_byte).collect();
+
+            if arg_bytes.len() > 255 {
+                todo!(
+                    "Print command is limited to 255 args due to requirement to transmit the number
+                    of args as a byte. Need to return an error here."
+                );
+            }
 
             let mut bytes = vec![b'P'];
-            bytes.extend_from_slice(format!("{:02X}", arg_bytes.len()).as_bytes());
+            bytes.extend_from_slice(&tcu_format_byte(arg_bytes.len() as u8));
             bytes.extend_from_slice(&arg_bytes);
 
             Ok(Request::TCUTransmit(bytes))
         }
 
-        ExprKind::SetTimeFormat(_) => todo!(),
+        ExprKind::SetTimeFormat(arg) => {
+            if let ExprKind::UInt(uint) = arg.kind() {
+                let mut bytes = Vec::from("P051B007466".as_bytes());
+                bytes.extend_from_slice(&tcu_format_byte(*uint as u8));
+                return Ok(Request::TCUTransmit(bytes));
+            }
+
+            panic!()
+        }
+
         ExprKind::SetTime => todo!(),
         ExprKind::SetOption { option, setting } => todo!(),
         ExprKind::TCUClose(_) => todo!(),

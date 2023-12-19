@@ -34,6 +34,9 @@ pub enum ExprKind {
     Protocol,
     Print(Vec<Expr>),
     SetTimeFormat(Box<Expr>),
+
+    /// This requires getting the current time from the OS and sending it to the printer via the
+    /// TCU. Need to consider that the time must be acquired just before the command is sent.
     SetTime,
     SetOption {
         option: Box<Expr>,
