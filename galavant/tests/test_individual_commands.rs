@@ -146,3 +146,26 @@ fn test_protocol() {
 }
 
 ////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_print() {
+    let script = r#"PRINT "t" 123 $F3"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0],
+                Ok(Request::TCUTransmit(vec![
+                    b'P', b'0', b'6', b'7', b'4', b'7', b'B', b'F', b'3'
+                ]))
+            )
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////

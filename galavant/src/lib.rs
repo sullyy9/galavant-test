@@ -9,7 +9,7 @@ mod parse;
 
 pub use crate::{
     error::Error,
-    evaluate::{evaluate, FrontendRequest, Dialog},
+    evaluate::{evaluate, Dialog, FrontendRequest},
     parse::parse_from_str,
 };
 

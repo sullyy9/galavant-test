@@ -83,7 +83,27 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
         ExprKind::Protocol => Ok(Request::Nothing),
 
         ExprKind::Print(args) => {
-            todo!("")
+            let mut arg_bytes = Vec::new();
+            for arg in args {
+                if let ExprKind::String(str) = arg.kind() {
+                    arg_bytes.extend_from_slice(str.as_bytes());
+                } else if let ExprKind::UInt(uint) = arg.kind() {
+                    debug_assert!(*uint <= 255);
+                    arg_bytes.push(*uint as u8);
+                }
+            }
+
+            // Each byte needs to be transformed into an ascii hex representation.
+            let arg_bytes: Vec<u8> = arg_bytes
+                .iter()
+                .flat_map(|b| format!("{b:02X}").into_bytes())
+                .collect();
+
+            let mut bytes = vec![b'P'];
+            bytes.extend_from_slice(format!("{:02X}", arg_bytes.len()).as_bytes());
+            bytes.extend_from_slice(&arg_bytes);
+
+            Ok(Request::TCUTransmit(bytes))
         }
 
         ExprKind::SetTimeFormat(_) => todo!(),
