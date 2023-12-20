@@ -190,3 +190,66 @@ fn test_settimeformat() {
 }
 
 ////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_setoption() {
+    let script = r#"SETOPTION 6 8"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0],
+                Ok(Request::TCUTransmit("P061B00004F0608".as_bytes().to_owned()))
+            )
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_tcuclose() {
+    let script = r#"TCUCLOSE 6"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0],
+                Ok(Request::TCUTransmit("C06".as_bytes().to_owned()))
+            )
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_tcuopen() {
+    let script = r#"TCUOPEN 2"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0],
+                Ok(Request::TCUTransmit("O02".as_bytes().to_owned()))
+            )
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////

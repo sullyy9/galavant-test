@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use chrono::{Datelike, Local, Timelike};
+
 use crate::{
     error::Error,
     expression::{Expr, ExprKind},
@@ -131,10 +133,57 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
             panic!()
         }
 
-        ExprKind::SetTime => todo!(),
-        ExprKind::SetOption { option, setting } => todo!(),
-        ExprKind::TCUClose(_) => todo!(),
-        ExprKind::TCUOpen(_) => todo!(),
+        ExprKind::SetTime => {
+            let datetime = Local::now();
+            let datetime = format!(
+                "{:02}:{:02}:{:02},{:02}/{:02}/{:02}",
+                datetime.hour(),
+                datetime.minute(),
+                datetime.second(),
+                datetime.day(),
+                datetime.month(),
+                (datetime.year() - 1900) % 100
+            );
+
+            let datetime = datetime.into_bytes().into_iter().flat_map(tcu_format_byte);
+
+            let mut bytes = Vec::from("P151B007473".as_bytes());
+            bytes.extend(datetime);
+
+            Ok(Request::TCUTransmit(bytes))
+        }
+
+        ExprKind::SetOption { option, setting } => {
+            if let (ExprKind::UInt(option), ExprKind::UInt(setting)) =
+                (option.kind(), setting.kind())
+            {
+                debug_assert!(*option <= 255);
+                debug_assert!(*setting <= 255);
+                let bytes = format!("P061B00004F{:02X}{:02X}", option, setting).into_bytes();
+                return Ok(Request::TCUTransmit(bytes));
+            }
+
+            panic!("Invalid SETOPTION args {option:?}, {setting:?}")
+        }
+
+        ExprKind::TCUClose(arg) => {
+            if let ExprKind::UInt(relay) = arg.kind() {
+                debug_assert!(*relay <= 255);
+                return Ok(Request::TCUTransmit(format!("C{:02X}", relay).into_bytes()));
+            }
+
+            panic!("Invalid TCUCLOSE arg {arg:?}")
+        }
+
+        ExprKind::TCUOpen(arg) => {
+            if let ExprKind::UInt(relay) = arg.kind() {
+                debug_assert!(*relay <= 255);
+                return Ok(Request::TCUTransmit(format!("O{:02X}", relay).into_bytes()));
+            }
+
+            panic!("Invalid TCUOPEN arg {arg:?}")
+        }
+
         ExprKind::TCUTest {
             channel,
             min,
@@ -142,7 +191,9 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
             retries,
             message,
         } => todo!(),
+
         ExprKind::PrinterSet(_) => todo!(),
+
         ExprKind::PrinterTest {
             channel,
             min,
