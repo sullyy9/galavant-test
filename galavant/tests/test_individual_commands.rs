@@ -386,3 +386,153 @@ fn test_printertest() {
 }
 
 ////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_usbopen() {
+    let script = r#"USBOPEN"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(requests[0], Ok(Request::PrinterOpen))
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_usbclose() {
+    let script = r#"USBCLOSE"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(requests[0], Ok(Request::PrinterClose))
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_usbprint() {
+    let script = r#"USBPRINT "test" 45 $D4"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            let mut expected = "test".as_bytes().to_owned();
+            expected.extend_from_slice(&[45, 0xD4]);
+
+            assert_eq!(requests[0], Ok(Request::PrinterTransmit(expected)))
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_usbsettimeformat() {
+    let script = r#"USBSETTIMEFORMAT 6"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0],
+                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, b't', b'f', 6]))
+            )
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_usbsetoption() {
+    let script = r#"USBSETOPTION 6 7"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0],
+                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, 0x00, b'O', 6, 7]))
+            )
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_usbprinterset() {
+    let script = r#"USBPRINTERSET 2"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            assert_eq!(
+                requests[0],
+                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, 0x00, b'S', 2]))
+            )
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_usbprintertest() {
+    let script = r#"USBPRINTERTEST 3 1000 12000 1 "FAIL""#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::PrinterTransact(_))));
+
+            if let Ok(Request::PrinterTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, vec![0x1B, 0x00, 0x00, b'M', 3]);
+
+                let resp = "AA1\r".as_bytes();
+
+                let result = trans.evaluate(resp);
+                assert!(matches!(result, Ok(Request::None)))
+            }
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////

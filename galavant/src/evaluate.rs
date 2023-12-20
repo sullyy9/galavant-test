@@ -21,11 +21,15 @@ pub enum FrontendRequest {
     GuiPrint(String),
     GuiDialogue { kind: Dialog, message: String },
 
-    TCUTransact(TCUTransaction),
-    TCUAwaitResponse(TCUTransaction),
+    TCUTransact(Transaction),
+    TCUAwaitResponse(Transaction),
     TCUFlush,
 
+    // Requests for direct communication with the printer i.e. not via the TCU.
+    PrinterOpen,
+    PrinterClose,
     PrinterTransmit(Vec<u8>),
+    PrinterTransact(Transaction),
 }
 
 type Request = FrontendRequest;
@@ -40,10 +44,11 @@ pub enum Dialog {
 ////////////////////////////////////////////////////////////////
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct TCUTransaction {
+pub struct Transaction {
     expression: Expr,
     bytes: Vec<u8>,
     response: Vec<u8>,
+    echo: bool,
     test: Option<MeasurementTest>,
 }
 
@@ -58,21 +63,33 @@ pub struct MeasurementTest {
 
 ////////////////////////////////////////////////////////////////
 
-impl TCUTransaction {
-    pub fn new(expression: Expr, bytes: Vec<u8>) -> Self {
+impl Transaction {
+    pub fn tcu(expression: Expr, bytes: Vec<u8>) -> Self {
         Self {
             expression,
             bytes,
             response: Vec::new(),
+            echo: true,
             test: None,
         }
     }
 
-    pub fn new_with_test(expression: Expr, bytes: Vec<u8>, test: MeasurementTest) -> Self {
+    pub fn tcu_with_test(expression: Expr, bytes: Vec<u8>, test: MeasurementTest) -> Self {
         Self {
             expression,
             bytes,
             response: Vec::new(),
+            echo: true,
+            test: Some(test),
+        }
+    }
+
+    pub fn printer_with_test(expression: Expr, bytes: Vec<u8>, test: MeasurementTest) -> Self {
+        Self {
+            expression,
+            bytes,
+            response: Vec::new(),
+            echo: false,
             test: Some(test),
         }
     }
@@ -85,22 +102,42 @@ impl TCUTransaction {
         self.response.extend_from_slice(response);
 
         let endings = self.response.iter().filter(|&&b| b == b'\r').count();
-        let expected_endings = if self.test.is_some() { 2 } else { 1 };
+        let expected_endings = if self.test.is_some() && self.echo {
+            2
+        } else if self.test.is_some() || self.echo {
+            1
+        } else {
+            0
+        };
+
+        // No response expected.
+        if expected_endings == 0 {
+            return Ok(Request::None);
+        }
 
         // Incomplete response.
         if endings < expected_endings {
             return Ok(Request::TCUAwaitResponse(self));
         }
 
-        let (echo, measurement) = self
-            .response
-            .iter()
-            .position(|&b| b == b'\r')
-            .map(|i| (&response[0..=i], &response[(i + 1)..]))
-            .map_or((None, None), |(echo, meas)| (Some(echo), Some(meas)));
+        let (echo, measurement) = if self.echo {
+            self.response
+                .iter()
+                .position(|&b| b == b'\r')
+                .map(|i| (&response[0..=i], &response[(i + 1)..]))
+                .map_or((None, None), |(echo, meas)| (Some(echo), Some(meas)))
+        } else {
+            let measurement = self
+                .response
+                .iter()
+                .position(|&b| b == b'\r')
+                .map(|i| &response[0..=i]);
 
-        // Command not echo'd by th TCU.
-        if echo.is_none() || echo.is_some_and(|echo| echo != self.bytes) {
+            (None, measurement)
+        };
+
+        // Command not echo'd by the TCU.
+        if self.echo && echo.is_none() || echo.is_some_and(|echo| echo != self.bytes) {
             todo!();
         }
 
@@ -243,7 +280,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
             bytes.extend_from_slice(&arg_bytes);
             bytes.push(b'\r');
 
-            Ok(Request::TCUTransact(TCUTransaction::new(
+            Ok(Request::TCUTransact(Transaction::tcu(
                 expr.to_owned(),
                 bytes,
             )))
@@ -255,7 +292,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
                 bytes.extend_from_slice(&tcu_format_byte(*uint as u8));
                 bytes.push(b'\r');
 
-                return Ok(Request::TCUTransact(TCUTransaction::new(
+                return Ok(Request::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     bytes,
                 )));
@@ -282,7 +319,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
             bytes.extend(datetime);
             bytes.push(b'\r');
 
-            Ok(Request::TCUTransact(TCUTransaction::new(
+            Ok(Request::TCUTransact(Transaction::tcu(
                 expr.to_owned(),
                 bytes,
             )))
@@ -295,7 +332,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
                 debug_assert!(*option <= 255);
                 debug_assert!(*setting <= 255);
                 let bytes = format!("P061B00004F{:02X}{:02X}\r", option, setting).into_bytes();
-                return Ok(Request::TCUTransact(TCUTransaction::new(
+                return Ok(Request::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     bytes,
                 )));
@@ -307,7 +344,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
         ExprKind::TCUClose(arg) => {
             if let ExprKind::UInt(relay) = arg.kind() {
                 debug_assert!(*relay <= 255);
-                return Ok(Request::TCUTransact(TCUTransaction::new(
+                return Ok(Request::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     format!("C{:02X}\r", relay).into_bytes(),
                 )));
@@ -319,7 +356,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
         ExprKind::TCUOpen(arg) => {
             if let ExprKind::UInt(relay) = arg.kind() {
                 debug_assert!(*relay <= 255);
-                return Ok(Request::TCUTransact(TCUTransaction::new(
+                return Ok(Request::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     format!("O{:02X}\r", relay).into_bytes(),
                 )));
@@ -352,7 +389,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
             {
                 debug_assert!(*channel <= 255);
 
-                return Ok(Request::TCUTransact(TCUTransaction::new_with_test(
+                return Ok(Request::TCUTransact(Transaction::tcu_with_test(
                     expr.clone(),
                     format!("M{channel:02X}\r").into_bytes(),
                     MeasurementTest {
@@ -369,7 +406,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
         ExprKind::PrinterSet(arg) => {
             if let ExprKind::UInt(channel) = arg.kind() {
                 debug_assert!(*channel <= 255);
-                return Ok(Request::TCUTransact(TCUTransaction::new(
+                return Ok(Request::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     format!("P051B000053{:02X}\r", channel).into_bytes(),
                 )));
@@ -403,7 +440,7 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
             {
                 debug_assert!(*channel <= 255);
 
-                return Ok(Request::TCUTransact(TCUTransaction::new_with_test(
+                return Ok(Request::TCUTransact(Transaction::tcu_with_test(
                     expr.clone(),
                     format!("W051B00004D{channel:02X}\r").into_bytes(),
                     MeasurementTest {
@@ -422,20 +459,121 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
         ExprKind::IssueTest(_) => Ok(Request::None),
         ExprKind::TestResult { .. } => Ok(Request::None),
 
-        ExprKind::USBOpen => todo!(),
-        ExprKind::USBClose => todo!(),
-        ExprKind::USBPrint(_) => todo!(),
-        ExprKind::USBSetTimeFormat(_) => todo!(),
-        ExprKind::USBSetTime => todo!(),
-        ExprKind::USBSetOption { option, setting } => todo!(),
-        ExprKind::USBPrinterSet(_) => todo!(),
+        ExprKind::USBOpen => Ok(Request::PrinterOpen),
+        ExprKind::USBClose => Ok(Request::PrinterClose),
+
+        ExprKind::USBPrint(args) => {
+            let mut bytes = Vec::new();
+            for arg in args {
+                if let ExprKind::String(str) = arg.kind() {
+                    bytes.extend_from_slice(str.as_bytes());
+                } else if let ExprKind::UInt(uint) = arg.kind() {
+                    debug_assert!(*uint <= 255);
+                    bytes.push(*uint as u8);
+                } else {
+                    panic!("Invalid USBPRINT arg {arg:?}")
+                }
+            }
+
+            Ok(Request::PrinterTransmit(bytes))
+        }
+
+        ExprKind::USBSetTimeFormat(arg) => {
+            if let ExprKind::UInt(uint) = arg.kind() {
+                let bytes = vec![0x1B, 0x00, b't', b'f', *uint as u8];
+                return Ok(Request::PrinterTransmit(bytes));
+            }
+
+            panic!()
+        }
+
+        ExprKind::USBSetTime => {
+            let datetime = Local::now();
+            let datetime = format!(
+                "{:02}:{:02}:{:02},{:02}/{:02}/{:02}",
+                datetime.hour(),
+                datetime.minute(),
+                datetime.second(),
+                datetime.day(),
+                datetime.month(),
+                (datetime.year() - 1900) % 100
+            );
+
+            let mut bytes = vec![0x1B, 0x00, b't', b's'];
+            bytes.extend_from_slice(datetime.as_bytes());
+
+            Ok(Request::PrinterTransmit(bytes))
+        }
+
+        ExprKind::USBSetOption { option, setting } => {
+            if let (ExprKind::UInt(option), ExprKind::UInt(setting)) =
+                (option.kind(), setting.kind())
+            {
+                debug_assert!(*option <= 255);
+                debug_assert!(*setting <= 255);
+
+                let bytes = vec![0x1B, 0x00, 0x00, b'O', *option as u8, *setting as u8];
+                return Ok(Request::PrinterTransmit(bytes));
+            }
+
+            panic!("Invalid USBSETOPTION args {option:?}, {setting:?}")
+        }
+
+        ExprKind::USBPrinterSet(arg) => {
+            if let ExprKind::UInt(channel) = arg.kind() {
+                debug_assert!(*channel <= 255);
+                return Ok(Request::PrinterTransmit(vec![
+                    0x1B,
+                    0x00,
+                    0x00,
+                    b'S',
+                    *channel as u8,
+                ]));
+            }
+
+            panic!("Invalid USBPRINTERSET arg {arg:?}")
+        }
+
         ExprKind::USBPrinterTest {
             channel,
             min,
             max,
             retries,
             message,
-        } => todo!(),
+        } => {
+            let args = (
+                channel.kind(),
+                min.kind(),
+                max.kind(),
+                retries.kind(),
+                message.kind(),
+            );
+
+            if let (
+                ExprKind::UInt(channel),
+                ExprKind::UInt(min),
+                ExprKind::UInt(max),
+                ExprKind::UInt(retries),
+                ExprKind::String(message),
+            ) = args
+            {
+                debug_assert!(*channel <= 255);
+
+                return Ok(Request::PrinterTransact(Transaction::printer_with_test(
+                    expr.clone(),
+                    vec![0x1B, 0x00, 0x00, b'M', *channel as u8],
+                    MeasurementTest {
+                        expected: *min..=*max,
+                        retries: *retries,
+                        failure_message: message.to_owned(),
+                    },
+                )));
+            }
+
+            panic!(
+                "Invalid USBPRINTERTEST args {channel:?}, {min:?}, {max:?}, {retries:?}, {message:?}"
+            )
+        }
     }
 }
 
