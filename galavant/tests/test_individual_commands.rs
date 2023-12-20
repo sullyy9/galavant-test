@@ -16,7 +16,7 @@ fn test_hpmode() {
                 exprs.into_iter().map(galavant::evaluate).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0], Ok(Request::Nothing))
+            assert_eq!(requests[0], Ok(Request::None))
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -139,7 +139,7 @@ fn test_protocol() {
                 exprs.into_iter().map(galavant::evaluate).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0], Ok(Request::Nothing))
+            assert_eq!(requests[0], Ok(Request::None))
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -157,12 +157,17 @@ fn test_print() {
                 exprs.into_iter().map(galavant::evaluate).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(
-                requests[0],
-                Ok(Request::TCUTransmit(vec![
-                    b'P', b'0', b'6', b'7', b'4', b'7', b'B', b'F', b'3'
-                ]))
-            )
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+
+            if let Ok(Request::TCUTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, "P06747BF3\r".as_bytes().to_owned());
+
+                let result = trans.evaluate(&tx);
+                assert!(matches!(result, Ok(Request::None)))
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -180,10 +185,17 @@ fn test_settimeformat() {
                 exprs.into_iter().map(galavant::evaluate).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(
-                requests[0],
-                Ok(Request::TCUTransmit("P051B00746605".as_bytes().to_owned()))
-            )
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+
+            if let Ok(Request::TCUTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, "P051B00746605\r".as_bytes().to_owned());
+
+                let result = trans.evaluate(&tx);
+                assert!(matches!(result, Ok(Request::None)))
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -201,10 +213,17 @@ fn test_setoption() {
                 exprs.into_iter().map(galavant::evaluate).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(
-                requests[0],
-                Ok(Request::TCUTransmit("P061B00004F0608".as_bytes().to_owned()))
-            )
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+
+            if let Ok(Request::TCUTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, "P061B00004F0608\r".as_bytes().to_owned());
+
+                let result = trans.evaluate(&tx);
+                assert!(matches!(result, Ok(Request::None)))
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -222,10 +241,17 @@ fn test_tcuclose() {
                 exprs.into_iter().map(galavant::evaluate).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(
-                requests[0],
-                Ok(Request::TCUTransmit("C06".as_bytes().to_owned()))
-            )
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+
+            if let Ok(Request::TCUTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, "C06\r".as_bytes().to_owned());
+
+                let result = trans.evaluate(&tx);
+                assert!(matches!(result, Ok(Request::None)))
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -243,10 +269,53 @@ fn test_tcuopen() {
                 exprs.into_iter().map(galavant::evaluate).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(
-                requests[0],
-                Ok(Request::TCUTransmit("O02".as_bytes().to_owned()))
-            )
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+
+            if let Ok(Request::TCUTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, "O02\r".as_bytes().to_owned());
+
+                let result = trans.evaluate(&tx);
+                assert!(matches!(result, Ok(Request::None)))
+            }
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_tcutest() {
+    let script = r#"TCUTEST 3 1000 12000 1 "FAIL""#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+
+            if let Ok(Request::TCUTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, "M03\r".as_bytes().to_owned());
+
+                let mut resp = tx;
+                let result = trans.evaluate(&resp);
+                assert!(matches!(result, Ok(Request::TCUAwaitResponse(_))));
+
+                if let Request::TCUAwaitResponse(trans) = result.unwrap() {
+                    resp.extend_from_slice("AA1\r".as_bytes());
+
+                    let result = trans.evaluate(&resp);
+                    assert!(matches!(result, Ok(Request::None)))
+                }
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
