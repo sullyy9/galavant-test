@@ -322,3 +322,67 @@ fn test_tcutest() {
 }
 
 ////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_printerset() {
+    let script = r#"PRINTERSET 2"#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+
+            if let Ok(Request::TCUTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, "P051B00005302\r".as_bytes().to_owned());
+
+                let result = trans.evaluate(&tx);
+                assert!(matches!(result, Ok(Request::None)))
+            }
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+#[test]
+fn test_printertest() {
+    let script = r#"PRINTERTEST 3 1000 12000 1 "FAIL""#;
+
+    match galavant::parse_from_str(script) {
+        Ok(exprs) => {
+            let requests: Vec<Result<FrontendRequest, Error>> =
+                exprs.into_iter().map(galavant::evaluate).collect();
+
+            assert_eq!(requests.len(), 1);
+            let request = requests.first().unwrap().to_owned();
+
+            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+
+            if let Ok(Request::TCUTransact(trans)) = request {
+                let tx = trans.bytes().to_owned();
+                assert_eq!(tx, "W051B00004D03\r".as_bytes().to_owned());
+
+                let mut resp = tx;
+                let result = trans.evaluate(&resp);
+                assert!(matches!(result, Ok(Request::TCUAwaitResponse(_))));
+
+                if let Request::TCUAwaitResponse(trans) = result.unwrap() {
+                    resp.extend_from_slice("AA1\r".as_bytes());
+
+                    let result = trans.evaluate(&resp);
+                    assert!(matches!(result, Ok(Request::None)))
+                }
+            }
+        }
+        Err(errors) => panic!("{:?}", errors),
+    }
+}
+
+////////////////////////////////////////////////////////////////

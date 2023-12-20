@@ -366,7 +366,17 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
             panic!("Invalid TCUTEST args {channel:?}, {min:?}, {max:?}, {retries:?}, {message:?}")
         }
 
-        ExprKind::PrinterSet(_) => todo!(),
+        ExprKind::PrinterSet(arg) => {
+            if let ExprKind::UInt(channel) = arg.kind() {
+                debug_assert!(*channel <= 255);
+                return Ok(Request::TCUTransact(TCUTransaction::new(
+                    expr.to_owned(),
+                    format!("P051B000053{:02X}\r", channel).into_bytes(),
+                )));
+            }
+
+            panic!("Invalid PRINTERSET arg {arg:?}")
+        }
 
         ExprKind::PrinterTest {
             channel,
@@ -374,9 +384,44 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
             max,
             retries,
             message,
-        } => todo!(),
-        ExprKind::IssueTest(_) => todo!(),
-        ExprKind::TestResult { min, max, message } => todo!(),
+        } => {
+            let args = (
+                channel.kind(),
+                min.kind(),
+                max.kind(),
+                retries.kind(),
+                message.kind(),
+            );
+
+            if let (
+                ExprKind::UInt(channel),
+                ExprKind::UInt(min),
+                ExprKind::UInt(max),
+                ExprKind::UInt(retries),
+                ExprKind::String(message),
+            ) = args
+            {
+                debug_assert!(*channel <= 255);
+
+                return Ok(Request::TCUTransact(TCUTransaction::new_with_test(
+                    expr.clone(),
+                    format!("W051B00004D{channel:02X}\r").into_bytes(),
+                    MeasurementTest {
+                        expected: *min..=*max,
+                        retries: *retries,
+                        failure_message: message.to_owned(),
+                    },
+                )));
+            }
+
+            panic!(
+                "Invalid PRINTERTEST args {channel:?}, {min:?}, {max:?}, {retries:?}, {message:?}"
+            )
+        }
+
+        ExprKind::IssueTest(_) => Ok(Request::None),
+        ExprKind::TestResult { .. } => Ok(Request::None),
+
         ExprKind::USBOpen => todo!(),
         ExprKind::USBClose => todo!(),
         ExprKind::USBPrint(_) => todo!(),
