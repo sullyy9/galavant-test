@@ -85,6 +85,7 @@ where
     return text::keyword(cmd)
         .then(whitespace())
         .ignore_then(parser1)
+        .then_ignore(just(',').padded_by(whitespace()))
         .then(parser2)
         .map(|(p1, p2)| (Box::from(p1), Box::from(p2)));
 }
@@ -115,9 +116,13 @@ where
     return text::keyword(cmd)
         .then(whitespace())
         .ignore_then(parser.clone())
+        .then_ignore(just(',').padded_by(whitespace()))
         .then(parser.clone())
+        .then_ignore(just(',').padded_by(whitespace()))
         .then(parser.clone())
+        .then_ignore(just(',').padded_by(whitespace()))
         .then(parser.clone())
+        .then_ignore(just(',').padded_by(whitespace()))
         .then(parser)
         .map(|((((p1, p2), p3), p4), p5)| {
             (
@@ -175,7 +180,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
     let expr = choice((string, uint))
         .map_with_span(Expr::from_kind_and_span)
         .padded_by(whitespace());
-    let multi_expr = expr.separated_by(whitespace());
+    let multi_expr = expr.separated_by(just(',').padded_by(whitespace()));
 
     let string_arg = expr.validate(|arg, span, emit| {
         if !matches!(arg.kind(), ExprKind::String(_)) {
@@ -371,20 +376,20 @@ PROTOCOL
 PRINT "print me"
 SETTIMEFORMAT $A6
 SETTIME
-SETOPTION 4 6
+SETOPTION 4, 6
 TCUCLOSE 4
 TCUOPEN $F
-TCUTEST 5 12000 56000 0 "error"
+TCUTEST 5, 12000, 56000, 0, "error"
 PRINTERSET 1
-PRINTERTEST 4 133 987 5 "error message"
+PRINTERTEST 4,133, 987,5,"error message"
 USBOPEN
 USBCLOSE
 USBPRINT "Look at me I can print"
 USBSETTIMEFORMAT 5
 USBSETTIME
-USBSETOPTION 5 9
+USBSETOPTION 5, 9
 USBPRINTERSET 6
-USBPRINTERTEST 4 133 987 5 "error message"
+USBPRINTERTEST 4, 133, 987, 5, "error message"
         "#;
 
         let parsed_ast = parser().parse(script);

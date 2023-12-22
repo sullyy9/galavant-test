@@ -142,7 +142,7 @@ fn test_protocol() {
 
 #[test]
 fn test_print() {
-    let script = r#"PRINT "t" 123 $F3"#;
+    let script = r#"PRINT "t", 123, $F3"#;
 
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
@@ -196,7 +196,7 @@ fn test_settimeformat() {
 
 #[test]
 fn test_setoption() {
-    let script = r#"SETOPTION 6 8"#;
+    let script = r#"SETOPTION 6, 8"#;
 
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
@@ -277,7 +277,7 @@ fn test_tcuopen() {
 
 #[test]
 fn test_tcutest() {
-    let script = r#"TCUTEST 3 1000 12000 1 "FAIL""#;
+    let script = r#"TCUTEST 3, 1000, 12000, 1, "FAIL""#;
 
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
@@ -339,7 +339,7 @@ fn test_printerset() {
 
 #[test]
 fn test_printertest() {
-    let script = r#"PRINTERTEST 3 1000 12000 1 "FAIL""#;
+    let script = r#"PRINTERTEST 3, 1000, 12000, 1, "FAIL""#;
 
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
@@ -408,7 +408,7 @@ fn test_usbclose() {
 
 #[test]
 fn test_usbprint() {
-    let script = r#"USBPRINT "test" 45 $D4"#;
+    let script = r#"USBPRINT "test", 45, $D4"#;
 
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
@@ -448,7 +448,7 @@ fn test_usbsettimeformat() {
 
 #[test]
 fn test_usbsetoption() {
-    let script = r#"USBSETOPTION 6 7"#;
+    let script = r#"USBSETOPTION 6, 7"#;
 
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
@@ -488,7 +488,7 @@ fn test_usbprinterset() {
 
 #[test]
 fn test_usbprintertest() {
-    let script = r#"USBPRINTERTEST 3 1000 12000 1 "FAIL""#;
+    let script = r#"USBPRINTERTEST 3, 1000, 12000, 1, "FAIL""#;
 
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
