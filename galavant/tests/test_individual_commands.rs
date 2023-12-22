@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use galavant::{Dialog, Error, FrontendRequest};
+use galavant::{Dialog, Error, FrontendRequest, Interpreter};
 
 type Request = FrontendRequest;
 
@@ -10,10 +10,9 @@ type Request = FrontendRequest;
 fn test_hpmode() {
     let script = r#"HPMODE"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0], Ok(Request::None))
@@ -28,10 +27,9 @@ fn test_hpmode() {
 fn test_comment() {
     let script = r#"COMMENT "This is a comment 1234""#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
@@ -49,10 +47,9 @@ fn test_comment() {
 fn test_wait() {
     let script = r#"WAIT 12345"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0], Ok(Request::Wait(Duration::from_millis(12345))))
@@ -67,10 +64,9 @@ fn test_wait() {
 fn test_opendialog() {
     let script = r#"OPENDIALOG "Open a dialog""#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
@@ -91,10 +87,9 @@ fn test_opendialog() {
 fn test_waitdialog() {
     let script = r#"WAITDIALOG "Open a wait dialog""#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
@@ -115,10 +110,9 @@ fn test_waitdialog() {
 fn test_flush() {
     let script = r#"FLUSH"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0], Ok(Request::TCUFlush))
@@ -133,10 +127,9 @@ fn test_flush() {
 fn test_protocol() {
     let script = r#"PROTOCOL"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0], Ok(Request::None))
@@ -151,10 +144,9 @@ fn test_protocol() {
 fn test_print() {
     let script = r#"PRINT "t" 123 $F3"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
@@ -179,10 +171,9 @@ fn test_print() {
 fn test_settimeformat() {
     let script = r#"SETTIMEFORMAT 5"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
@@ -207,10 +198,9 @@ fn test_settimeformat() {
 fn test_setoption() {
     let script = r#"SETOPTION 6 8"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
@@ -235,10 +225,9 @@ fn test_setoption() {
 fn test_tcuclose() {
     let script = r#"TCUCLOSE 6"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
@@ -263,10 +252,9 @@ fn test_tcuclose() {
 fn test_tcuopen() {
     let script = r#"TCUOPEN 2"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
@@ -291,10 +279,9 @@ fn test_tcuopen() {
 fn test_tcutest() {
     let script = r#"TCUTEST 3 1000 12000 1 "FAIL""#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
@@ -327,10 +314,9 @@ fn test_tcutest() {
 fn test_printerset() {
     let script = r#"PRINTERSET 2"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
@@ -355,10 +341,9 @@ fn test_printerset() {
 fn test_printertest() {
     let script = r#"PRINTERTEST 3 1000 12000 1 "FAIL""#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
@@ -391,10 +376,9 @@ fn test_printertest() {
 fn test_usbopen() {
     let script = r#"USBOPEN"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0], Ok(Request::PrinterOpen))
@@ -409,10 +393,9 @@ fn test_usbopen() {
 fn test_usbclose() {
     let script = r#"USBCLOSE"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0], Ok(Request::PrinterClose))
@@ -427,10 +410,9 @@ fn test_usbclose() {
 fn test_usbprint() {
     let script = r#"USBPRINT "test" 45 $D4"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let mut expected = "test".as_bytes().to_owned();
@@ -448,10 +430,9 @@ fn test_usbprint() {
 fn test_usbsettimeformat() {
     let script = r#"USBSETTIMEFORMAT 6"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
@@ -469,10 +450,9 @@ fn test_usbsettimeformat() {
 fn test_usbsetoption() {
     let script = r#"USBSETOPTION 6 7"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
@@ -490,10 +470,9 @@ fn test_usbsetoption() {
 fn test_usbprinterset() {
     let script = r#"USBPRINTERSET 2"#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
@@ -511,10 +490,9 @@ fn test_usbprinterset() {
 fn test_usbprintertest() {
     let script = r#"USBPRINTERTEST 3 1000 12000 1 "FAIL""#;
 
-    match galavant::parse_from_str(script) {
-        Ok(exprs) => {
-            let requests: Vec<Result<FrontendRequest, Error>> =
-                exprs.into_iter().map(galavant::evaluate).collect();
+    match Interpreter::try_from_str(script) {
+        Ok(interpreter) => {
+            let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();

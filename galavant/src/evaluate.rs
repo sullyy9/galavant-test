@@ -206,7 +206,7 @@ fn tcu_format_byte(byte: u8) -> Vec<u8> {
 
 ////////////////////////////////////////////////////////////////
 
-pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
+pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
     match expr.kind() {
         ExprKind::String(_) => panic!("Orphaned String"),
         ExprKind::UInt(_) => panic!("Orphaned UInt"),
