@@ -142,7 +142,7 @@ impl std::fmt::Display for Error {
 impl Reason {
     fn as_message(&self) -> &'static str {
         match self {
-            Reason::Unexpected { .. } => todo!(),
+            Reason::Unexpected { .. } => "Unexpected token",
             Reason::Unclosed => todo!(),
             Reason::ArgType { .. } => "Invalid argument type",
             Reason::ArgValue { .. } => "Argument value exceeds limits",
@@ -151,7 +151,40 @@ impl Reason {
 
     fn labels(&self) -> Vec<Label> {
         match self {
-            Reason::Unexpected { .. } => todo!(),
+            Reason::Unexpected {
+                span,
+                expected,
+                found,
+            } => {
+                let expected: Vec<String> = expected
+                    .iter()
+                    .map(|e| e.map_or("End of input".to_owned(), |c| c.to_string()))
+                    .collect();
+                let found = found.map_or("End of input".to_owned(), |c| c.to_string());
+
+                let expected_str = if expected.len() == 1 {
+                    format!("Expected '{}'", expected[0])
+                } else if let Some(first) = expected.first() {
+                    let expected = expected
+                        .iter()
+                        .skip(1)
+                        .map(|s| format!("'{}'", s))
+                        .fold(format!("'{}'", first), |acc, s| format!("{acc}, {s}"));
+
+                    format!("Expected one of {}", expected)
+                } else {
+                    String::from("Expected none")
+                };
+
+                vec![
+                    Label::new(span.clone())
+                        .with_message(expected_str)
+                        .with_priority(10),
+                    Label::new(span.clone())
+                        .with_message(format!("Found '{}'", found))
+                        .with_priority(9),
+                ]
+            }
             Reason::Unclosed => todo!(),
             Reason::ArgType {
                 span,
