@@ -27,12 +27,30 @@ fn default<T: Default>() -> T {
 /// from chumsky's builtin whitespace parser which does match newline characters.
 ///
 /// # Returns
-/// A parser mathcing inline whitespace.
+/// A parser matching inline whitespace.
 ///   
 fn whitespace() -> Repeated<impl Parser<char, (), Error = Error> + Copy + Clone> {
     filter(|c: &char| c.is_inline_whitespace())
         .ignored()
         .repeated()
+}
+
+////////////////////////////////////////////////////////////////
+
+/// Parser that matches unsigned integers. This differs from chumsky's builtin text::int parser in
+/// that it allows leading 0's.
+///
+/// # Arguments
+/// * `radix` - Base of the integer.
+///
+/// # Returns
+/// A parser matching unsigned integers.
+///   
+fn uint(radix: u32) -> impl Parser<char, String, Error = Error> + Copy + Clone {
+    filter(move |c: &char| c.is_digit(radix))
+        .map(Some)
+        .chain::<char, Vec<_>, _>(filter(move |c: &char| c.is_digit(radix)).repeated())
+        .collect()
 }
 
 ////////////////////////////////////////////////////////////////
@@ -170,9 +188,9 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
         .map(String::from_iter)
         .map(ExprKind::String);
 
-    let uint_dec = text::int(10).map(|s: String| ExprKind::UInt(s.parse().unwrap()));
+    let uint_dec = uint(10).map(|s: String| ExprKind::UInt(s.parse().unwrap()));
     let uint_hex = just("$")
-        .ignore_then(text::int(16))
+        .ignore_then(uint(16))
         .map(|s: String| ExprKind::UInt(u32::from_str_radix(&s, 16).unwrap()));
 
     let uint = uint_dec.or(uint_hex);
@@ -333,6 +351,8 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
 }
 
 ////////////////////////////////////////////////////////////////
+/// tests
+////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
@@ -343,6 +363,8 @@ mod tests {
     use crate::error::Reason;
 
     use super::*;
+
+    ////////////////////////////////////////////////////////////////
 
     fn print_error_reports(script: &str, errors: &[Error]) {
         for error in errors {
@@ -362,6 +384,8 @@ mod tests {
             }
         }
     }
+
+    ////////////////////////////////////////////////////////////////
 
     #[test]
     fn test_parse_commands() {
@@ -477,6 +501,8 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
         }
     }
 
+    ////////////////////////////////////////////////////////////////
+
     #[test]
     fn test_single_command() {
         let script = r#"COMMENT "This is a comment 1234""#;
@@ -494,6 +520,68 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
             Err(errors) => panic!("{:?}", errors),
         }
     }
+
+    ////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn test_hex_arg_leading_0s() {
+        let script = r#"TCUOPEN $00C"#;
+
+        match parse_from_str(script) {
+            Ok(exprs) => {
+                assert_eq!(exprs.len(), 1);
+                assert_eq!(
+                    exprs[0],
+                    Expr::from_kind_default(ExprKind::TCUOpen(Box::new(Expr::from_uint_default(
+                        0x0C
+                    ))))
+                )
+            }
+            Err(errors) => print_error_reports(script, &errors),
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn test_hex_arg_0() {
+        let script = r#"TCUOPEN $00"#;
+
+        match parse_from_str(script) {
+            Ok(exprs) => {
+                assert_eq!(exprs.len(), 1);
+                assert_eq!(
+                    exprs[0],
+                    Expr::from_kind_default(ExprKind::TCUOpen(Box::new(Expr::from_uint_default(
+                        0
+                    ))))
+                )
+            }
+            Err(errors) => print_error_reports(script, &errors),
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn test_dec_arg_0() {
+        let script = r#"TCUOPEN 0"#;
+
+        match parse_from_str(script) {
+            Ok(exprs) => {
+                assert_eq!(exprs.len(), 1);
+                assert_eq!(
+                    exprs[0],
+                    Expr::from_kind_default(ExprKind::TCUOpen(Box::new(Expr::from_uint_default(
+                        0
+                    ))))
+                )
+            }
+            Err(errors) => print_error_reports(script, &errors),
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
 
     #[test]
     fn test_invalid_string_type_arg() {
@@ -530,6 +618,8 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
         }
     }
 
+    ////////////////////////////////////////////////////////////////
+
     #[test]
     fn test_invalid_uint_type_arg() {
         let script = r#"WAIT "$F54A""#;
@@ -564,6 +654,8 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
             }
         }
     }
+
+    ////////////////////////////////////////////////////////////////
 
     #[test]
     fn test_invalid_uint_value_arg() {
@@ -600,6 +692,8 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
         }
     }
 
+    ////////////////////////////////////////////////////////////////
+
     #[test]
     fn test_comment_own_line() {
         let script = r#";Test comment"#;
@@ -618,6 +712,8 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
             Err(errors) => print_error_reports(script, &errors),
         }
     }
+
+    ////////////////////////////////////////////////////////////////
 
     #[test]
     fn test_comment_around_command() {
@@ -650,6 +746,8 @@ PRINT "test" ; Comment
             Err(errors) => print_error_reports(script, &errors),
         }
     }
+
+    ////////////////////////////////////////////////////////////////
 
     #[test]
     fn test_comment_repeated() {
@@ -685,6 +783,8 @@ PRINT "test" ; Comment
             Err(errors) => print_error_reports(script, &errors),
         }
     }
+
+    ////////////////////////////////////////////////////////////////
 
     #[test]
     fn test_commented_out_command() {
