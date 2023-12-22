@@ -1,4 +1,8 @@
-use chumsky::{combinator::Repeated, prelude::*, text::Character};
+use chumsky::{
+    combinator::Repeated,
+    prelude::*,
+    text::{newline, Character},
+};
 
 use crate::{
     error::Error,
@@ -200,7 +204,6 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
                     error = error.with_help("If the argument was intended to be a hex unsigned integer, try removing the enclosing \"\"");
                 }
             }
-            
             emit(error)
         }
 
@@ -216,6 +219,15 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
 
         arg
     });
+
+    ////////////////
+
+    let script_comment = just(';')
+        .ignore_then(take_until(newline().or(end()).rewind()))
+        .map(|(s, _)| String::from_iter(s))
+        .map(ExprKind::ScriptComment)
+        .map_with_span(Expr::from_kind_and_span)
+        .padded_by(whitespace());
 
     ////////////////
 
@@ -309,6 +321,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
     ////////////////
 
     decl.or(expr)
+        .or(script_comment)
         .separated_by(text::newline().repeated())
         .padded()
         .then_ignore(end())
@@ -325,6 +338,25 @@ mod tests {
     use crate::error::Reason;
 
     use super::*;
+
+    fn print_error_reports(script: &str, errors: &[Error]) {
+        for error in errors {
+            let report = {
+                let report = error.to_report();
+                let mut string = Vec::new();
+
+                report.write(Source::from(script), string.by_ref()).unwrap();
+
+                String::from_utf8(string)
+            };
+
+            if let Ok(report) = report {
+                panic!("Parser returned error: {}", report)
+            } else {
+                panic!("Parser returned unknown error: {:#?}", report)
+            }
+        }
+    }
 
     #[test]
     fn test_parse_commands() {
@@ -474,7 +506,6 @@ USBPRINTERTEST 4 133 987 5 "error message"
                     assert!(matches!(error.reason(), Reason::ArgType { .. }));
                     return;
 
-                    
                     let report = {
                         let report = error.to_report();
                         let mut string = Vec::new();
@@ -483,7 +514,7 @@ USBPRINTERTEST 4 133 987 5 "error message"
 
                         String::from_utf8(string)
                     };
-                    
+
                     if let Ok(report) = report {
                         panic!("Parser returned error: {}", report)
                     } else {
@@ -504,13 +535,12 @@ USBPRINTERTEST 4 133 987 5 "error message"
             Ok(_) => {}
             Err(errors) => {
                 assert_eq!(errors.len(), 1);
-                
+
                 #[allow(unreachable_code)]
                 if let Some(error) = errors.first() {
                     assert!(matches!(error.reason(), Reason::ArgType { .. }));
                     return;
 
-                    
                     let report = {
                         let report = error.to_report();
                         let mut string = Vec::new();
@@ -519,7 +549,7 @@ USBPRINTERTEST 4 133 987 5 "error message"
 
                         String::from_utf8(string)
                     };
-                    
+
                     if let Ok(report) = report {
                         panic!("Parser returned error: {}", report)
                     } else {
@@ -540,7 +570,7 @@ USBPRINTERTEST 4 133 987 5 "error message"
             Ok(_) => {}
             Err(errors) => {
                 assert_eq!(errors.len(), 1);
-                
+
                 #[allow(unreachable_code)]
                 if let Some(error) = errors.first() {
                     assert!(matches!(error.reason(), Reason::ArgValue { .. }));
@@ -554,7 +584,7 @@ USBPRINTERTEST 4 133 987 5 "error message"
 
                         String::from_utf8(string)
                     };
-                    
+
                     if let Ok(report) = report {
                         panic!("Parser returned error: {}", report)
                     } else {
@@ -562,6 +592,111 @@ USBPRINTERTEST 4 133 987 5 "error message"
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn test_comment_own_line() {
+        let script = r#";Test comment"#;
+        let parsed_ast = parser().parse(script);
+
+        match parsed_ast {
+            Ok(ast) => {
+                assert_eq!(ast.len(), 1);
+                let expr = ast.first().unwrap();
+                assert_eq!(
+                    *expr.kind(),
+                    ExprKind::ScriptComment("Test comment".to_owned())
+                )
+            }
+
+            Err(errors) => print_error_reports(script, &errors),
+        }
+    }
+
+    #[test]
+    fn test_comment_around_command() {
+        let script = r#"
+;Comment
+PRINT "test" ; Comment
+;Comment
+        "#;
+        let parsed_ast = parser().parse(script);
+
+        match parsed_ast {
+            Ok(ast) => {
+                assert_eq!(ast.len(), 4);
+                let expr = &ast[0];
+                assert_eq!(*expr.kind(), ExprKind::ScriptComment("Comment".to_owned()));
+
+                let expr = &ast[1];
+                assert_eq!(
+                    *expr.kind(),
+                    ExprKind::Print(vec![Expr::from_str_default("test")])
+                );
+
+                let expr = &ast[2];
+                assert_eq!(*expr.kind(), ExprKind::ScriptComment(" Comment".to_owned()));
+
+                let expr = &ast[3];
+                assert_eq!(*expr.kind(), ExprKind::ScriptComment("Comment".to_owned()));
+            }
+
+            Err(errors) => print_error_reports(script, &errors),
+        }
+    }
+
+    #[test]
+    fn test_comment_repeated() {
+        let script = r#"
+;;;;;;Comment
+; Comment ;;;; Comment ;;;
+;;;;Comment;;;
+        "#;
+        let parsed_ast = parser().parse(script);
+
+        match parsed_ast {
+            Ok(ast) => {
+                assert_eq!(ast.len(), 3);
+                let expr = &ast[0];
+                assert_eq!(
+                    *expr.kind(),
+                    ExprKind::ScriptComment(";;;;;Comment".to_owned())
+                );
+
+                let expr = &ast[1];
+                assert_eq!(
+                    *expr.kind(),
+                    ExprKind::ScriptComment(" Comment ;;;; Comment ;;;".to_owned())
+                );
+
+                let expr = &ast[2];
+                assert_eq!(
+                    *expr.kind(),
+                    ExprKind::ScriptComment(";;;Comment;;;".to_owned())
+                );
+            }
+
+            Err(errors) => print_error_reports(script, &errors),
+        }
+    }
+
+    #[test]
+    fn test_commented_out_command() {
+        let script = r#"; PRINT "test""#;
+        let parsed_ast = parser().parse(script);
+
+        match parsed_ast {
+            Ok(ast) => {
+                assert_eq!(ast.len(), 1);
+                let expr = ast.first().unwrap();
+                assert_eq!(
+                    *expr.kind(),
+                    ExprKind::ScriptComment(" PRINT \"test\"".to_owned())
+                )
+            }
+
+            Err(errors) => print_error_reports(script, &errors),
         }
     }
 }

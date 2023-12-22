@@ -9,6 +9,8 @@ pub enum ExprKind {
     String(String),
     UInt(u32),
 
+    ScriptComment(String),
+
     /// All this command ever did was add a NULL after ESC when sending the ESC commands for the
     /// following test commands:
     /// SETTIMEFORMAT
@@ -163,6 +165,9 @@ impl ExprKind {
         match self {
             ExprKind::String(_) => "String",
             ExprKind::UInt(_) => "Unsigned Integer",
+
+            ExprKind::ScriptComment(_) => "Script Comment",
+
             ExprKind::HPMode => "Command: 'HPMODE'",
             ExprKind::Comment(_) => "Command: 'COMMENT'",
             ExprKind::Wait(_) => "Command: 'WAIT'",

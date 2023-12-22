@@ -211,6 +211,8 @@ pub fn evaluate(expr: Expr) -> Result<FrontendRequest, Error> {
         ExprKind::String(_) => panic!("Orphaned String"),
         ExprKind::UInt(_) => panic!("Orphaned UInt"),
 
+        ExprKind::ScriptComment(_) => Ok(Request::None),
+
         ExprKind::HPMode => Ok(Request::None),
 
         ExprKind::Comment(arg) => {
