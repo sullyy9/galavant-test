@@ -72,7 +72,7 @@ fn test_opendialog() {
             assert_eq!(
                 requests[0],
                 Ok(Request::GuiDialogue {
-                    kind: Dialog::Notification { await_close: false },
+                    kind: Dialog::Notification,
                     message: String::from("Open a dialog")
                 })
             )
@@ -95,7 +95,7 @@ fn test_waitdialog() {
             assert_eq!(
                 requests[0],
                 Ok(Request::GuiDialogue {
-                    kind: Dialog::Notification { await_close: true },
+                    kind: Dialog::ManualInput,
                     message: String::from("Open a wait dialog")
                 })
             )
@@ -292,14 +292,11 @@ fn test_tcutest() {
                 let tx = trans.bytes().to_owned();
                 assert_eq!(tx, "M03\r".as_bytes().to_owned());
 
-                let mut resp = tx;
-                let result = trans.evaluate(&resp);
+                let result = trans.evaluate(&tx);
                 assert!(matches!(result, Ok(Request::TCUAwaitResponse(_))));
 
                 if let Request::TCUAwaitResponse(trans) = result.unwrap() {
-                    resp.extend_from_slice("AA1\r".as_bytes());
-
-                    let result = trans.evaluate(&resp);
+                    let result = trans.evaluate("AA1\r".as_bytes());
                     assert!(matches!(result, Ok(Request::None)))
                 }
             }
@@ -354,14 +351,11 @@ fn test_printertest() {
                 let tx = trans.bytes().to_owned();
                 assert_eq!(tx, "W051B00004D03\r".as_bytes().to_owned());
 
-                let mut resp = tx;
-                let result = trans.evaluate(&resp);
+                let result = trans.evaluate(&tx);
                 assert!(matches!(result, Ok(Request::TCUAwaitResponse(_))));
 
                 if let Request::TCUAwaitResponse(trans) = result.unwrap() {
-                    resp.extend_from_slice("AA1\r".as_bytes());
-
-                    let result = trans.evaluate(&resp);
+                    let result = trans.evaluate("AA1\r".as_bytes());
                     assert!(matches!(result, Ok(Request::None)))
                 }
             }
