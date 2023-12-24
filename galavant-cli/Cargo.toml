@@ -6,4 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ariadne = "0.3.0"
+clap = { version = "4.4.11", features = ["derive"] }
 galavant = { path = "../galavant" }
+serialport = "4.3.0"
