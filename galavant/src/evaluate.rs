@@ -141,14 +141,14 @@ impl Transaction {
             self.response
                 .iter()
                 .position(|&b| b == b'\r')
-                .map(|i| (&response[0..=i], &response[(i + 1)..]))
+                .map(|i| (&self.response[0..=i], &self.response[(i + 1)..]))
                 .map_or((None, None), |(echo, meas)| (Some(echo), Some(meas)))
         } else {
             let measurement = self
                 .response
                 .iter()
                 .position(|&b| b == b'\r')
-                .map(|i| &response[0..=i]);
+                .map(|i| &self.response[0..=i]);
 
             (None, measurement)
         };
