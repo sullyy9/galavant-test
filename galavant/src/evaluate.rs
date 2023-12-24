@@ -30,6 +30,7 @@ pub enum FrontendRequest {
     PrinterClose,
     PrinterTransmit(Vec<u8>),
     PrinterTransact(Transaction),
+    PrinterAwaitResponse(Transaction),
 }
 
 type Request = FrontendRequest;
@@ -43,10 +44,20 @@ pub enum Dialog {
 
 ////////////////////////////////////////////////////////////////
 
+#[allow(clippy::upper_case_acronyms)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub enum Device {
+    TCU,
+    Printer,
+}
+
+////////////////////////////////////////////////////////////////
+
 #[derive(PartialEq, Clone, Debug)]
 pub struct Transaction {
     expression: Expr,
     bytes: Vec<u8>,
+    device: Device,
     response: Vec<u8>,
     echo: bool,
     test: Option<MeasurementTest>,
@@ -68,6 +79,7 @@ impl Transaction {
         Self {
             expression,
             bytes,
+            device: Device::TCU,
             response: Vec::new(),
             echo: true,
             test: None,
@@ -78,6 +90,7 @@ impl Transaction {
         Self {
             expression,
             bytes,
+            device: Device::TCU,
             response: Vec::new(),
             echo: true,
             test: Some(test),
@@ -88,6 +101,7 @@ impl Transaction {
         Self {
             expression,
             bytes,
+            device: Device::Printer,
             response: Vec::new(),
             echo: false,
             test: Some(test),
@@ -117,7 +131,10 @@ impl Transaction {
 
         // Incomplete response.
         if endings < expected_endings {
-            return Ok(Request::TCUAwaitResponse(self));
+            return match self.device {
+                Device::TCU => Ok(Request::TCUAwaitResponse(self)),
+                Device::Printer => Ok(Request::PrinterAwaitResponse(self)),
+            };
         }
 
         let (echo, measurement) = if self.echo {
@@ -145,7 +162,10 @@ impl Transaction {
         if let Some(test) = self.test {
             if let Some(retry) = test.evaluate(measurement.unwrap())? {
                 self.test = Some(retry);
-                return Ok(Request::TCUTransact(self));
+                return match self.device {
+                    Device::TCU => Ok(Request::TCUTransact(self)),
+                    Device::Printer => Ok(Request::PrinterTransact(self)),
+                };
             }
         }
 
