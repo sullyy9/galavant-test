@@ -39,7 +39,10 @@ type Request = FrontendRequest;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum Dialog {
-    Notification { await_close: bool },
+    Notification,
+
+    /// Dialog that should display a message and allow the user to either continue or stop the test.
+    ManualInput,
 }
 
 ////////////////////////////////////////////////////////////////
@@ -253,7 +256,7 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
 
         ExprKind::OpenDialog(arg) => {
             if let ExprKind::String(message) = arg.kind() {
-                let kind = Dialog::Notification { await_close: false };
+                let kind = Dialog::Notification;
                 let message = message.to_owned();
                 return Ok(Request::GuiDialogue { kind, message });
             }
@@ -263,7 +266,7 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
 
         ExprKind::WaitDialog(arg) => {
             if let ExprKind::String(message) = arg.kind() {
-                let kind = Dialog::Notification { await_close: true };
+                let kind = Dialog::ManualInput;
                 let message = message.to_owned();
                 return Ok(Request::GuiDialogue { kind, message });
             }
