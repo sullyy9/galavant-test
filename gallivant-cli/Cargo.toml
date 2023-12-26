@@ -1,5 +1,5 @@
 [package]
-name = "galavant"
+name = "gallivant-cli"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 ariadne = "0.3.0"
-chrono = "0.4.31"
-chumsky = "0.9.3"
+clap = { version = "4.4.11", features = ["derive"] }
+gallivant = { path = "../gallivant" }
+serialport = "4.3.0"

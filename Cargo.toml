@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "galavant",
-    "galavant-cli",
+    "gallivant",
+    "gallivant-cli",
 ]

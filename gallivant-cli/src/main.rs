@@ -8,25 +8,25 @@ use ariadne::Source;
 use clap::Parser;
 use serialport::{self, SerialPort};
 
-use galavant::{FrontendRequest, Interpreter};
+use gallivant::{FrontendRequest, Interpreter};
 
 use self::{args::Args, mock::MockTCUPort, port::CommPort};
 
 ////////////////////////////////////////////////////////////////
 
 enum Error {
-    ParseErrors(Vec<galavant::Error>),
-    RuntimeError(galavant::Error),
+    ParseErrors(Vec<gallivant::Error>),
+    RuntimeError(gallivant::Error),
 }
 
-impl From<Vec<galavant::Error>> for Error {
-    fn from(errors: Vec<galavant::Error>) -> Self {
+impl From<Vec<gallivant::Error>> for Error {
+    fn from(errors: Vec<gallivant::Error>) -> Self {
         Self::ParseErrors(errors)
     }
 }
 
-impl From<galavant::Error> for Error {
-    fn from(error: galavant::Error) -> Self {
+impl From<gallivant::Error> for Error {
+    fn from(error: gallivant::Error) -> Self {
         Self::RuntimeError(error)
     }
 }
@@ -54,7 +54,7 @@ fn main() {
 
     let run_script = |i| run_script(i, args.debug, &mut tcu, &mut printer);
 
-    match galavant::Interpreter::try_from_str(&script)
+    match gallivant::Interpreter::try_from_str(&script)
         .map_err(Error::from)
         .and_then(run_script)
     {
@@ -108,7 +108,7 @@ fn handle_request(
 
         FrontendRequest::GuiPrint(message) => println!("COMMENT: {message}"),
         FrontendRequest::GuiDialogue { kind, message } => match kind {
-            galavant::Dialog::ManualInput => {
+            gallivant::Dialog::ManualInput => {
                 println!("DIALOG:  {message}");
 
                 loop {
@@ -133,7 +133,7 @@ fn handle_request(
                     }
                 }
             }
-            galavant::Dialog::Notification => println!("DIALOG:  {message}"),
+            gallivant::Dialog::Notification => println!("DIALOG:  {message}"),
         },
 
         FrontendRequest::TCUTransact(transaction) => {

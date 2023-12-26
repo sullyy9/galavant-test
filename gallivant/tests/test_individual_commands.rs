@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use galavant::{Dialog, Error, FrontendRequest, Interpreter};
+use gallivant::{Dialog, Error, FrontendRequest, Interpreter};
 
 type Request = FrontendRequest;
 
