@@ -5,7 +5,7 @@ use chumsky::{
 };
 
 use crate::{
-    error::Error,
+    error::{Error, Reason},
     expression::{Expr, ExprKind},
 };
 
@@ -193,7 +193,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
         .ignore_then(uint(16))
         .map(|s: String| ExprKind::UInt(u32::from_str_radix(&s, 16).unwrap()));
 
-    let uint = uint_dec.or(uint_hex);
+    let uint = choice((uint_dec, uint_hex));
 
     let expr = choice((string, uint))
         .map_with_span(Expr::from_kind_and_span)
@@ -246,7 +246,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
     ////////////////
 
     let script_comment = just(';')
-        .ignore_then(take_until(newline().or(end()).rewind()))
+        .ignore_then(take_until(choice((newline(), end())).rewind()))
         .map(|(s, _)| String::from_iter(s))
         .map(ExprKind::ScriptComment)
         .map_with_span(Expr::from_kind_and_span)
@@ -312,7 +312,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
         },
     );
 
-    let decl = choice((
+    let command = choice((
         hpmode,
         comment,
         wait,
@@ -343,11 +343,17 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
 
     ////////////////
 
-    decl.or(expr)
-        .or(script_comment)
+    choice((command, expr, script_comment))
         .separated_by(text::newline().repeated())
         .padded()
         .then_ignore(end())
+        .map_err(|error| {
+            if let Reason::Unexpected { span, .. } = error.reason() {
+                return Error::unrecognised_command(span.clone());
+            }
+
+            error
+        })
 }
 
 ////////////////////////////////////////////////////////////////

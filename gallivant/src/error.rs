@@ -18,6 +18,11 @@ pub enum Reason {
     Unclosed,
 
     /// An argument was of the wrong type.
+    UnrecognisedCommand {
+        span: Span,
+    },
+
+    /// An argument was of the wrong type.
     ArgType {
         span: Span,
         expected: Vec<&'static str>,
@@ -46,6 +51,14 @@ pub struct Error {
 ////////////////////////////////////////////////////////////////
 
 impl Error {
+    pub fn unrecognised_command(span: Span) -> Self {
+        Self {
+            reason: Reason::UnrecognisedCommand { span },
+            notes: Vec::new(),
+            help: Vec::new(),
+        }
+    }
+
     /// Create a new error resulting from an argument being the wrong type.
     ///
     /// # Arguments
@@ -144,6 +157,7 @@ impl Reason {
         match self {
             Reason::Unexpected { .. } => "Unexpected token",
             Reason::Unclosed => todo!(),
+            Reason::UnrecognisedCommand { .. } => "Unrecognised command found",
             Reason::ArgType { .. } => "Invalid argument type",
             Reason::ArgValue { .. } => "Argument value exceeds limits",
         }
@@ -186,6 +200,13 @@ impl Reason {
                 ]
             }
             Reason::Unclosed => todo!(),
+
+            Reason::UnrecognisedCommand { span } => {
+                vec![Label::new(span.clone())
+                    .with_message("Unrecognised command")
+                    .with_priority(10)]
+            }
+
             Reason::ArgType {
                 span,
                 expected,
@@ -214,6 +235,7 @@ impl Reason {
                         .with_priority(9),
                 ]
             }
+
             Reason::ArgValue {
                 span,
                 value,
