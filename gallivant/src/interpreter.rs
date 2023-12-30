@@ -1,6 +1,6 @@
 use super::{
     error::Error,
-    evaluate::{evaluate, FrontendRequest, ScriptState},
+    evaluation::{evaluate, FrontendRequest, ScriptState},
     expression::Expr,
     parse::parse_from_str,
 };
@@ -27,7 +27,7 @@ impl Interpreter {
         Ok(Self {
             ast: parse_from_str(script)?,
             index: 0,
-            state: ScriptState::default(),
+            state: ScriptState::new(),
         })
     }
 }

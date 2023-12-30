@@ -1,4 +1,4 @@
-use std::{ops::RangeInclusive, time::Duration};
+use std::time::Duration;
 
 use chrono::{Datelike, Local, Timelike};
 
@@ -7,223 +7,11 @@ use crate::{
     expression::{Expr, ExprKind},
 };
 
-////////////////////////////////////////////////////////////////
-// types
-////////////////////////////////////////////////////////////////
-
-#[derive(Default, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ScriptState {
-    hpmode: bool,
-}
-
-////////////////////////////////////////////////////////////////
-
-// Will need to handle requests that will receive a response. e.g. For the TCUTEST command.
-// Maybe pass a callback fn to call with the requests response?
-#[derive(Clone, Debug, PartialEq)]
-pub enum FrontendRequest {
-    None,
-    Wait(Duration),
-
-    GuiPrint(String),
-    GuiDialogue { kind: Dialog, message: String },
-
-    TCUTransact(Transaction),
-    TCUAwaitResponse(Transaction),
-    TCUFlush,
-
-    // Requests for direct communication with the printer i.e. not via the TCU.
-    PrinterOpen,
-    PrinterClose,
-    PrinterTransmit(Vec<u8>),
-    PrinterTransact(Transaction),
-    PrinterAwaitResponse(Transaction),
-}
-
-type Request = FrontendRequest;
-
-////////////////////////////////////////////////////////////////
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Dialog {
-    Notification,
-
-    /// Dialog that should display a message and allow the user to either continue or stop the test.
-    ManualInput,
-}
-
-////////////////////////////////////////////////////////////////
-
-#[allow(clippy::upper_case_acronyms)]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Device {
-    TCU,
-    Printer,
-}
-
-////////////////////////////////////////////////////////////////
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Transaction {
-    expression: Expr,
-    bytes: Vec<u8>,
-    device: Device,
-    response: Vec<u8>,
-    echo: bool,
-    test: Option<MeasurementTest>,
-}
-
-////////////////////////////////////////////////////////////////
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MeasurementTest {
-    pub expected: RangeInclusive<u32>,
-    pub retries: u32,
-    pub failure_message: String,
-}
-
-////////////////////////////////////////////////////////////////
-
-impl Transaction {
-    pub fn tcu(expression: Expr, bytes: Vec<u8>) -> Self {
-        Self {
-            expression,
-            bytes,
-            device: Device::TCU,
-            response: Vec::new(),
-            echo: true,
-            test: None,
-        }
-    }
-
-    pub fn tcu_with_test(expression: Expr, bytes: Vec<u8>, test: MeasurementTest) -> Self {
-        Self {
-            expression,
-            bytes,
-            device: Device::TCU,
-            response: Vec::new(),
-            echo: true,
-            test: Some(test),
-        }
-    }
-
-    pub fn printer_with_test(expression: Expr, bytes: Vec<u8>, test: MeasurementTest) -> Self {
-        Self {
-            expression,
-            bytes,
-            device: Device::Printer,
-            response: Vec::new(),
-            echo: false,
-            test: Some(test),
-        }
-    }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    pub fn evaluate(mut self, response: &[u8]) -> Result<FrontendRequest, Error> {
-        self.response.extend_from_slice(response);
-
-        let endings = self.response.iter().filter(|&&b| b == b'\r').count();
-        let expected_endings = if self.test.is_some() && self.echo {
-            2
-        } else if self.test.is_some() || self.echo {
-            1
-        } else {
-            0
-        };
-
-        // No response expected.
-        if expected_endings == 0 {
-            return Ok(Request::None);
-        }
-
-        // Incomplete response.
-        if endings < expected_endings {
-            return match self.device {
-                Device::TCU => Ok(Request::TCUAwaitResponse(self)),
-                Device::Printer => Ok(Request::PrinterAwaitResponse(self)),
-            };
-        }
-
-        let (echo, measurement) = if self.echo {
-            self.response
-                .iter()
-                .position(|&b| b == b'\r')
-                .map(|i| (&self.response[0..=i], &self.response[(i + 1)..]))
-                .map_or((None, None), |(echo, meas)| (Some(echo), Some(meas)))
-        } else {
-            let measurement = self
-                .response
-                .iter()
-                .position(|&b| b == b'\r')
-                .map(|i| &self.response[0..=i]);
-
-            (None, measurement)
-        };
-
-        // Command not echo'd by the TCU.
-        if self.echo && echo.is_none() || echo.is_some_and(|echo| echo != self.bytes) {
-            todo!();
-        }
-
-        // Test the measurement.
-        if let Some(test) = self.test {
-            if let Some(retry) = test.evaluate(measurement.unwrap())? {
-                self.test = Some(retry);
-                return match self.device {
-                    Device::TCU => Ok(Request::TCUTransact(self)),
-                    Device::Printer => Ok(Request::PrinterTransact(self)),
-                };
-            }
-        }
-
-        // Success.
-        Ok(Request::None)
-    }
-}
-
-////////////////////////////////////////////////////////////////
-
-impl MeasurementTest {
-    /// Evaluate a measurement.
-    ///
-    /// # Arguments
-    ///
-    /// * `measurement` - Byte slice containing the measurement, made up of hexadecimal digits. Only
-    ///                   bytes up to the first \r are processed.
-    ///
-    /// # Returns
-    /// Result containing one of:
-    /// * None if the measurement passed the test
-    /// * Self if the measurement failed the test but the test should be retried.
-    /// * Error if the measurement failed the test.
-    ///
-    fn evaluate(mut self, measurement: &[u8]) -> Result<Option<Self>, Error> {
-        let measurement = std::str::from_utf8(measurement).unwrap();
-        let measurement = measurement
-            .chars()
-            .take_while(|&c| c != '\r')
-            .collect::<String>();
-
-        if let Ok(measurement) = u32::from_str_radix(&measurement, 16) {
-            if self.expected.contains(&measurement) {
-                Ok(None)
-            } else if self.retries > 0 {
-                self.retries -= 1;
-                Ok(Some(self))
-            } else {
-                panic!(
-                    "Test failure. Expected: {:?} | Got: {measurement}",
-                    self.expected
-                )
-            }
-        } else {
-            panic!("Measurment parse error for {measurement}");
-        }
-    }
-}
+use super::{
+    frontend::{Dialog, FrontendRequest, Transaction},
+    measurement::MeasurementTest,
+    state::ScriptState,
+};
 
 ////////////////////////////////////////////////////////////////
 
@@ -241,15 +29,15 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
         ExprKind::String(_) => panic!("Orphaned String"),
         ExprKind::UInt(_) => panic!("Orphaned UInt"),
 
-        ExprKind::ScriptComment(_) => Ok(Request::None),
+        ExprKind::ScriptComment(_) => Ok(FrontendRequest::None),
 
         ExprKind::HPMode => {
             state.hpmode = !state.hpmode;
-            Ok(Request::None)
+            Ok(FrontendRequest::None)
         }
         ExprKind::Comment(arg) => {
             if let ExprKind::String(str) = arg.kind() {
-                return Ok(Request::GuiPrint(str.to_owned()));
+                return Ok(FrontendRequest::GuiPrint(str.to_owned()));
             }
 
             panic!("Invalid COMMENT arg {:?}", arg);
@@ -257,7 +45,9 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
 
         ExprKind::Wait(arg) => {
             if let ExprKind::UInt(milliseconds) = arg.kind() {
-                return Ok(Request::Wait(Duration::from_millis((*milliseconds).into())));
+                return Ok(FrontendRequest::Wait(Duration::from_millis(
+                    (*milliseconds).into(),
+                )));
             }
 
             panic!("Invalid WAIT arg {:?}", arg);
@@ -267,7 +57,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             if let ExprKind::String(message) = arg.kind() {
                 let kind = Dialog::Notification;
                 let message = message.to_owned();
-                return Ok(Request::GuiDialogue { kind, message });
+                return Ok(FrontendRequest::GuiDialogue { kind, message });
             }
 
             panic!("Invalid OPENDIALOG arg {:?}", arg);
@@ -277,14 +67,14 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             if let ExprKind::String(message) = arg.kind() {
                 let kind = Dialog::ManualInput;
                 let message = message.to_owned();
-                return Ok(Request::GuiDialogue { kind, message });
+                return Ok(FrontendRequest::GuiDialogue { kind, message });
             }
 
             panic!("Invalid WAITDIALOG arg {:?}", arg);
         }
 
-        ExprKind::Flush => Ok(Request::TCUFlush),
-        ExprKind::Protocol => Ok(Request::None),
+        ExprKind::Flush => Ok(FrontendRequest::TCUFlush),
+        ExprKind::Protocol => Ok(FrontendRequest::None),
 
         ExprKind::Print(args) => {
             let mut arg_bytes = Vec::new();
@@ -314,7 +104,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             bytes.extend_from_slice(&arg_bytes);
             bytes.push(b'\r');
 
-            Ok(Request::TCUTransact(Transaction::tcu(
+            Ok(FrontendRequest::TCUTransact(Transaction::tcu(
                 expr.to_owned(),
                 bytes,
             )))
@@ -331,7 +121,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                 bytes.extend_from_slice(&tcu_format_byte(*uint as u8));
                 bytes.push(b'\r');
 
-                return Ok(Request::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     bytes,
                 )));
@@ -363,7 +153,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             bytes.extend(datetime);
             bytes.push(b'\r');
 
-            Ok(Request::TCUTransact(Transaction::tcu(
+            Ok(FrontendRequest::TCUTransact(Transaction::tcu(
                 expr.to_owned(),
                 bytes,
             )))
@@ -382,7 +172,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     format!("P061B004F{:02X}{:02X}\r", option, setting).into_bytes()
                 };
 
-                return Ok(Request::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     bytes,
                 )));
@@ -394,7 +184,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
         ExprKind::TCUClose(arg) => {
             if let ExprKind::UInt(relay) = arg.kind() {
                 debug_assert!(*relay <= 255);
-                return Ok(Request::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     format!("C{:02X}\r", relay).into_bytes(),
                 )));
@@ -406,7 +196,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
         ExprKind::TCUOpen(arg) => {
             if let ExprKind::UInt(relay) = arg.kind() {
                 debug_assert!(*relay <= 255);
-                return Ok(Request::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     format!("O{:02X}\r", relay).into_bytes(),
                 )));
@@ -439,7 +229,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             {
                 debug_assert!(*channel <= 255);
 
-                return Ok(Request::TCUTransact(Transaction::tcu_with_test(
+                return Ok(FrontendRequest::TCUTransact(Transaction::tcu_with_test(
                     expr.clone(),
                     format!("M{channel:02X}\r").into_bytes(),
                     MeasurementTest {
@@ -463,7 +253,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     format!("P051B0053{:02X}\r", channel).into_bytes()
                 };
 
-                return Ok(Request::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     bytes,
                 )));
@@ -503,7 +293,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     format!("W051B004D{channel:02X}\r").into_bytes()
                 };
 
-                return Ok(Request::TCUTransact(Transaction::tcu_with_test(
+                return Ok(FrontendRequest::TCUTransact(Transaction::tcu_with_test(
                     expr.clone(),
                     bytes,
                     MeasurementTest {
@@ -519,11 +309,11 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             )
         }
 
-        ExprKind::IssueTest(_) => Ok(Request::None),
-        ExprKind::TestResult { .. } => Ok(Request::None),
+        ExprKind::IssueTest(_) => Ok(FrontendRequest::None),
+        ExprKind::TestResult { .. } => Ok(FrontendRequest::None),
 
-        ExprKind::USBOpen => Ok(Request::PrinterOpen),
-        ExprKind::USBClose => Ok(Request::PrinterClose),
+        ExprKind::USBOpen => Ok(FrontendRequest::PrinterOpen),
+        ExprKind::USBClose => Ok(FrontendRequest::PrinterClose),
 
         ExprKind::USBPrint(args) => {
             let mut bytes = Vec::new();
@@ -538,7 +328,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                 }
             }
 
-            Ok(Request::PrinterTransmit(bytes))
+            Ok(FrontendRequest::PrinterTransmit(bytes))
         }
 
         ExprKind::USBSetTimeFormat(arg) => {
@@ -549,7 +339,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     vec![0x1B, b't', b'f', *uint as u8]
                 };
 
-                return Ok(Request::PrinterTransmit(bytes));
+                return Ok(FrontendRequest::PrinterTransmit(bytes));
             }
 
             panic!()
@@ -575,7 +365,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
 
             bytes.extend_from_slice(datetime.as_bytes());
 
-            Ok(Request::PrinterTransmit(bytes))
+            Ok(FrontendRequest::PrinterTransmit(bytes))
         }
 
         ExprKind::USBSetOption { option, setting } => {
@@ -591,7 +381,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     vec![0x1B, 0x00, b'O', *option as u8, *setting as u8]
                 };
 
-                return Ok(Request::PrinterTransmit(bytes));
+                return Ok(FrontendRequest::PrinterTransmit(bytes));
             }
 
             panic!("Invalid USBSETOPTION args {option:?}, {setting:?}")
@@ -607,7 +397,7 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     vec![0x1B, 0x00, b'S', *channel as u8]
                 };
 
-                return Ok(Request::PrinterTransmit(bytes));
+                return Ok(FrontendRequest::PrinterTransmit(bytes));
             }
 
             panic!("Invalid USBPRINTERSET arg {arg:?}")
@@ -644,15 +434,17 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     vec![0x1B, 0x00, b'M', *channel as u8]
                 };
 
-                return Ok(Request::PrinterTransact(Transaction::printer_with_test(
-                    expr.clone(),
-                    bytes,
-                    MeasurementTest {
-                        expected: *min..=*max,
-                        retries: *retries,
-                        failure_message: message.to_owned(),
-                    },
-                )));
+                return Ok(FrontendRequest::PrinterTransact(
+                    Transaction::printer_with_test(
+                        expr.clone(),
+                        bytes,
+                        MeasurementTest {
+                            expected: *min..=*max,
+                            retries: *retries,
+                            failure_message: message.to_owned(),
+                        },
+                    ),
+                ));
             }
 
             panic!(
