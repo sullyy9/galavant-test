@@ -63,7 +63,6 @@ pub struct Transaction {
     bytes: Vec<u8>,
     device: Device,
     response: Vec<u8>,
-    echo: bool,
     test: Option<MeasurementTest>,
 }
 
@@ -72,36 +71,23 @@ pub struct Transaction {
 ////////////////////////////////////////////////////////////////
 
 impl Transaction {
-    pub fn tcu(expression: Expr, bytes: Vec<u8>) -> Self {
+    pub fn with_tcu(expression: Expr, bytes: Vec<u8>, test: Option<MeasurementTest>) -> Self {
         Self {
             expression,
             bytes,
             device: Device::TCU,
             response: Vec::new(),
-            echo: true,
-            test: None,
+            test,
         }
     }
 
-    pub fn tcu_with_test(expression: Expr, bytes: Vec<u8>, test: MeasurementTest) -> Self {
-        Self {
-            expression,
-            bytes,
-            device: Device::TCU,
-            response: Vec::new(),
-            echo: true,
-            test: Some(test),
-        }
-    }
-
-    pub fn printer_with_test(expression: Expr, bytes: Vec<u8>, test: MeasurementTest) -> Self {
+    pub fn with_printer(expression: Expr, bytes: Vec<u8>, test: Option<MeasurementTest>) -> Self {
         Self {
             expression,
             bytes,
             device: Device::Printer,
             response: Vec::new(),
-            echo: false,
-            test: Some(test),
+            test,
         }
     }
 }
@@ -119,9 +105,11 @@ impl Transaction {
         self.response.extend_from_slice(response);
 
         let endings = self.response.iter().filter(|&&b| b == b'\r').count();
-        let expected_endings = if self.test.is_some() && self.echo {
+
+        let echo_expected = matches!(self.device, Device::TCU);
+        let expected_endings = if self.test.is_some() && echo_expected {
             2
-        } else if self.test.is_some() || self.echo {
+        } else if self.test.is_some() || echo_expected {
             1
         } else {
             0
@@ -140,7 +128,7 @@ impl Transaction {
             };
         }
 
-        let (echo, measurement) = if self.echo {
+        let (echo, measurement) = if echo_expected {
             self.response
                 .iter()
                 .position(|&b| b == b'\r')
@@ -157,7 +145,7 @@ impl Transaction {
         };
 
         // Command not echo'd by the TCU.
-        if self.echo && echo.is_none() || echo.is_some_and(|echo| echo != self.bytes) {
+        if echo_expected && echo.is_none() || echo.is_some_and(|echo| echo != self.bytes) {
             todo!();
         }
 

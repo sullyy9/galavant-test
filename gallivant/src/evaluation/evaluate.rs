@@ -104,9 +104,10 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             bytes.extend_from_slice(&arg_bytes);
             bytes.push(b'\r');
 
-            Ok(FrontendRequest::TCUTransact(Transaction::tcu(
+            Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                 expr.to_owned(),
                 bytes,
+                None,
             )))
         }
 
@@ -121,9 +122,10 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                 bytes.extend_from_slice(&tcu_format_byte(*uint as u8));
                 bytes.push(b'\r');
 
-                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
                     bytes,
+                    None,
                 )));
             }
 
@@ -153,9 +155,10 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             bytes.extend(datetime);
             bytes.push(b'\r');
 
-            Ok(FrontendRequest::TCUTransact(Transaction::tcu(
+            Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                 expr.to_owned(),
                 bytes,
+                None,
             )))
         }
 
@@ -172,9 +175,10 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     format!("P061B004F{:02X}{:02X}\r", option, setting).into_bytes()
                 };
 
-                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
                     bytes,
+                    None,
                 )));
             }
 
@@ -184,9 +188,10 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
         ExprKind::TCUClose(arg) => {
             if let ExprKind::UInt(relay) = arg.kind() {
                 debug_assert!(*relay <= 255);
-                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
                     format!("C{:02X}\r", relay).into_bytes(),
+                    None,
                 )));
             }
 
@@ -196,9 +201,10 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
         ExprKind::TCUOpen(arg) => {
             if let ExprKind::UInt(relay) = arg.kind() {
                 debug_assert!(*relay <= 255);
-                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
                     format!("O{:02X}\r", relay).into_bytes(),
+                    None,
                 )));
             }
 
@@ -229,14 +235,14 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
             {
                 debug_assert!(*channel <= 255);
 
-                return Ok(FrontendRequest::TCUTransact(Transaction::tcu_with_test(
+                return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.clone(),
                     format!("M{channel:02X}\r").into_bytes(),
-                    MeasurementTest {
+                    Some(MeasurementTest {
                         expected: *min..=*max,
                         retries: *retries,
                         failure_message: message.to_owned(),
-                    },
+                    }),
                 )));
             }
 
@@ -253,9 +259,10 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     format!("P051B0053{:02X}\r", channel).into_bytes()
                 };
 
-                return Ok(FrontendRequest::TCUTransact(Transaction::tcu(
+                return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
                     bytes,
+                    None,
                 )));
             }
 
@@ -293,14 +300,14 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     format!("W051B004D{channel:02X}\r").into_bytes()
                 };
 
-                return Ok(FrontendRequest::TCUTransact(Transaction::tcu_with_test(
+                return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.clone(),
                     bytes,
-                    MeasurementTest {
+                    Some(MeasurementTest {
                         expected: *min..=*max,
                         retries: *retries,
                         failure_message: message.to_owned(),
-                    },
+                    }),
                 )));
             }
 
@@ -434,17 +441,15 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     vec![0x1B, 0x00, b'M', *channel as u8]
                 };
 
-                return Ok(FrontendRequest::PrinterTransact(
-                    Transaction::printer_with_test(
-                        expr.clone(),
-                        bytes,
-                        MeasurementTest {
-                            expected: *min..=*max,
-                            retries: *retries,
-                            failure_message: message.to_owned(),
-                        },
-                    ),
-                ));
+                return Ok(FrontendRequest::PrinterTransact(Transaction::with_printer(
+                    expr.clone(),
+                    bytes,
+                    Some(MeasurementTest {
+                        expected: *min..=*max,
+                        retries: *retries,
+                        failure_message: message.to_owned(),
+                    }),
+                )));
             }
 
             panic!(
