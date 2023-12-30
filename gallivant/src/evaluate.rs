@@ -11,9 +11,16 @@ use crate::{
 // types
 ////////////////////////////////////////////////////////////////
 
+#[derive(Default, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ScriptState {
+    hpmode: bool,
+}
+
+////////////////////////////////////////////////////////////////
+
 // Will need to handle requests that will receive a response. e.g. For the TCUTEST command.
 // Maybe pass a callback fn to call with the requests response?
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FrontendRequest {
     None,
     Wait(Duration),
@@ -37,7 +44,7 @@ type Request = FrontendRequest;
 
 ////////////////////////////////////////////////////////////////
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Dialog {
     Notification,
 
@@ -48,7 +55,7 @@ pub enum Dialog {
 ////////////////////////////////////////////////////////////////
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Device {
     TCU,
     Printer,
@@ -56,7 +63,7 @@ pub enum Device {
 
 ////////////////////////////////////////////////////////////////
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Transaction {
     expression: Expr,
     bytes: Vec<u8>,
@@ -68,7 +75,7 @@ pub struct Transaction {
 
 ////////////////////////////////////////////////////////////////
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MeasurementTest {
     pub expected: RangeInclusive<u32>,
     pub retries: u32,
@@ -229,15 +236,17 @@ fn tcu_format_byte(byte: u8) -> Vec<u8> {
 
 ////////////////////////////////////////////////////////////////
 
-pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
+pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest, Error> {
     match expr.kind() {
         ExprKind::String(_) => panic!("Orphaned String"),
         ExprKind::UInt(_) => panic!("Orphaned UInt"),
 
         ExprKind::ScriptComment(_) => Ok(Request::None),
 
-        ExprKind::HPMode => Ok(Request::None),
-
+        ExprKind::HPMode => {
+            state.hpmode = !state.hpmode;
+            Ok(Request::None)
+        }
         ExprKind::Comment(arg) => {
             if let ExprKind::String(str) = arg.kind() {
                 return Ok(Request::GuiPrint(str.to_owned()));
@@ -313,7 +322,12 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
 
         ExprKind::SetTimeFormat(arg) => {
             if let ExprKind::UInt(uint) = arg.kind() {
-                let mut bytes = Vec::from("P051B007466".as_bytes());
+                let mut bytes = if state.hpmode {
+                    Vec::from("P051B007466".as_bytes())
+                } else {
+                    Vec::from("P051B7466".as_bytes())
+                };
+
                 bytes.extend_from_slice(&tcu_format_byte(*uint as u8));
                 bytes.push(b'\r');
 
@@ -340,7 +354,12 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
 
             let datetime = datetime.into_bytes().into_iter().flat_map(tcu_format_byte);
 
-            let mut bytes = Vec::from("P151B007473".as_bytes());
+            let mut bytes = if state.hpmode {
+                Vec::from("P151B007473".as_bytes())
+            } else {
+                Vec::from("P151B7473".as_bytes())
+            };
+
             bytes.extend(datetime);
             bytes.push(b'\r');
 
@@ -356,7 +375,13 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
             {
                 debug_assert!(*option <= 255);
                 debug_assert!(*setting <= 255);
-                let bytes = format!("P061B00004F{:02X}{:02X}\r", option, setting).into_bytes();
+
+                let bytes = if state.hpmode {
+                    format!("P061B00004F{:02X}{:02X}\r", option, setting).into_bytes()
+                } else {
+                    format!("P061B004F{:02X}{:02X}\r", option, setting).into_bytes()
+                };
+
                 return Ok(Request::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
                     bytes,
@@ -431,9 +456,16 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
         ExprKind::PrinterSet(arg) => {
             if let ExprKind::UInt(channel) = arg.kind() {
                 debug_assert!(*channel <= 255);
+
+                let bytes = if state.hpmode {
+                    format!("P051B000053{:02X}\r", channel).into_bytes()
+                } else {
+                    format!("P051B0053{:02X}\r", channel).into_bytes()
+                };
+
                 return Ok(Request::TCUTransact(Transaction::tcu(
                     expr.to_owned(),
-                    format!("P051B000053{:02X}\r", channel).into_bytes(),
+                    bytes,
                 )));
             }
 
@@ -465,9 +497,15 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
             {
                 debug_assert!(*channel <= 255);
 
+                let bytes = if state.hpmode {
+                    format!("W051B00004D{channel:02X}\r").into_bytes()
+                } else {
+                    format!("W051B004D{channel:02X}\r").into_bytes()
+                };
+
                 return Ok(Request::TCUTransact(Transaction::tcu_with_test(
                     expr.clone(),
-                    format!("W051B00004D{channel:02X}\r").into_bytes(),
+                    bytes,
                     MeasurementTest {
                         expected: *min..=*max,
                         retries: *retries,
@@ -505,7 +543,12 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
 
         ExprKind::USBSetTimeFormat(arg) => {
             if let ExprKind::UInt(uint) = arg.kind() {
-                let bytes = vec![0x1B, 0x00, b't', b'f', *uint as u8];
+                let bytes = if state.hpmode {
+                    vec![0x1B, 0x00, b't', b'f', *uint as u8]
+                } else {
+                    vec![0x1B, b't', b'f', *uint as u8]
+                };
+
                 return Ok(Request::PrinterTransmit(bytes));
             }
 
@@ -524,7 +567,12 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
                 (datetime.year() - 1900) % 100
             );
 
-            let mut bytes = vec![0x1B, 0x00, b't', b's'];
+            let mut bytes = if state.hpmode {
+                vec![0x1B, 0x00, b't', b's']
+            } else {
+                vec![0x1B, b't', b's']
+            };
+
             bytes.extend_from_slice(datetime.as_bytes());
 
             Ok(Request::PrinterTransmit(bytes))
@@ -537,7 +585,12 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
                 debug_assert!(*option <= 255);
                 debug_assert!(*setting <= 255);
 
-                let bytes = vec![0x1B, 0x00, 0x00, b'O', *option as u8, *setting as u8];
+                let bytes = if state.hpmode {
+                    vec![0x1B, 0x00, 0x00, b'O', *option as u8, *setting as u8]
+                } else {
+                    vec![0x1B, 0x00, b'O', *option as u8, *setting as u8]
+                };
+
                 return Ok(Request::PrinterTransmit(bytes));
             }
 
@@ -547,13 +600,14 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
         ExprKind::USBPrinterSet(arg) => {
             if let ExprKind::UInt(channel) = arg.kind() {
                 debug_assert!(*channel <= 255);
-                return Ok(Request::PrinterTransmit(vec![
-                    0x1B,
-                    0x00,
-                    0x00,
-                    b'S',
-                    *channel as u8,
-                ]));
+
+                let bytes = if state.hpmode {
+                    vec![0x1B, 0x00, 0x00, b'S', *channel as u8]
+                } else {
+                    vec![0x1B, 0x00, b'S', *channel as u8]
+                };
+
+                return Ok(Request::PrinterTransmit(bytes));
             }
 
             panic!("Invalid USBPRINTERSET arg {arg:?}")
@@ -584,9 +638,15 @@ pub fn evaluate(expr: &Expr) -> Result<FrontendRequest, Error> {
             {
                 debug_assert!(*channel <= 255);
 
+                let bytes = if state.hpmode {
+                    vec![0x1B, 0x00, 0x00, b'M', *channel as u8]
+                } else {
+                    vec![0x1B, 0x00, b'M', *channel as u8]
+                };
+
                 return Ok(Request::PrinterTransact(Transaction::printer_with_test(
                     expr.clone(),
-                    vec![0x1B, 0x00, 0x00, b'M', *channel as u8],
+                    bytes,
                     MeasurementTest {
                         expected: *min..=*max,
                         retries: *retries,

@@ -182,7 +182,7 @@ fn test_settimeformat() {
 
             if let Ok(Request::TCUTransact(trans)) = request {
                 let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "P051B00746605\r".as_bytes().to_owned());
+                assert_eq!(tx, "P051B746605\r".as_bytes().to_owned());
 
                 let result = trans.evaluate(&tx);
                 assert!(matches!(result, Ok(Request::None)))
@@ -209,7 +209,7 @@ fn test_setoption() {
 
             if let Ok(Request::TCUTransact(trans)) = request {
                 let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "P061B00004F0608\r".as_bytes().to_owned());
+                assert_eq!(tx, "P061B004F0608\r".as_bytes().to_owned());
 
                 let result = trans.evaluate(&tx);
                 assert!(matches!(result, Ok(Request::None)))
@@ -322,7 +322,7 @@ fn test_printerset() {
 
             if let Ok(Request::TCUTransact(trans)) = request {
                 let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "P051B00005302\r".as_bytes().to_owned());
+                assert_eq!(tx, "P051B005302\r".as_bytes().to_owned());
 
                 let result = trans.evaluate(&tx);
                 assert!(matches!(result, Ok(Request::None)))
@@ -349,7 +349,7 @@ fn test_printertest() {
 
             if let Ok(Request::TCUTransact(trans)) = request {
                 let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "W051B00004D03\r".as_bytes().to_owned());
+                assert_eq!(tx, "W051B004D03\r".as_bytes().to_owned());
 
                 let result = trans.evaluate(&tx);
                 assert!(matches!(result, Ok(Request::TCUAwaitResponse(_))));
@@ -431,7 +431,7 @@ fn test_usbsettimeformat() {
             assert_eq!(requests.len(), 1);
             assert_eq!(
                 requests[0],
-                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, b't', b'f', 6]))
+                Ok(Request::PrinterTransmit(vec![0x1B, b't', b'f', 6]))
             )
         }
         Err(errors) => panic!("{:?}", errors),
@@ -451,7 +451,7 @@ fn test_usbsetoption() {
             assert_eq!(requests.len(), 1);
             assert_eq!(
                 requests[0],
-                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, 0x00, b'O', 6, 7]))
+                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, b'O', 6, 7]))
             )
         }
         Err(errors) => panic!("{:?}", errors),
@@ -471,7 +471,7 @@ fn test_usbprinterset() {
             assert_eq!(requests.len(), 1);
             assert_eq!(
                 requests[0],
-                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, 0x00, b'S', 2]))
+                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, b'S', 2]))
             )
         }
         Err(errors) => panic!("{:?}", errors),
@@ -495,7 +495,7 @@ fn test_usbprintertest() {
 
             if let Ok(Request::PrinterTransact(trans)) = request {
                 let tx = trans.bytes().to_owned();
-                assert_eq!(tx, vec![0x1B, 0x00, 0x00, b'M', 3]);
+                assert_eq!(tx, vec![0x1B, 0x00, b'M', 3]);
 
                 let resp = "AA1\r".as_bytes();
 

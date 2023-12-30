@@ -1,6 +1,6 @@
 use super::{
     error::Error,
-    evaluate::{evaluate, FrontendRequest},
+    evaluate::{evaluate, FrontendRequest, ScriptState},
     expression::Expr,
     parse::parse_from_str,
 };
@@ -11,10 +11,11 @@ use super::{
 
 /// Interpreter for test scripts.
 ///
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct Interpreter {
     ast: Vec<Expr>,
     index: usize,
+    state: ScriptState,
 }
 
 ////////////////////////////////////////////////////////////////
@@ -26,6 +27,7 @@ impl Interpreter {
         Ok(Self {
             ast: parse_from_str(script)?,
             index: 0,
+            state: ScriptState::default(),
         })
     }
 }
@@ -40,7 +42,7 @@ impl Iterator for Interpreter {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(expr) = self.ast.get(self.index) {
             self.index += 1;
-            Some(evaluate(expr))
+            Some(evaluate(expr, &mut self.state))
         } else {
             None
         }

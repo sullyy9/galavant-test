@@ -11,23 +11,7 @@ pub enum ExprKind {
 
     ScriptComment(String),
 
-    /// All this command ever did was add a NULL after ESC when sending the ESC commands for the
-    /// following test commands:
-    /// SETTIMEFORMAT
-    /// SETTIME
-    /// SETOPTION
-    /// PRINTERSET
-    /// PRINTERTEST
-    /// and their USB variants.
-    ///
-    /// This was in order to direct the ESC command to the printer's debug protocol handler.
-    /// Extra NULL's are ignored by the debug protocol i.e. ESC NULL NULL NULL 's' is handled
-    /// the same as ESC NULL 's'. Therefore, rather than keeping an internal state here, we can just
-    /// always send the extra NULL for those commands. Essentially this command will be always
-    /// on and using it will not do anything.
-    ///
     HPMode,
-
     Comment(Box<Expr>),
     Wait(Box<Expr>),
     OpenDialog(Box<Expr>),
