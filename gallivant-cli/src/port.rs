@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serialport::{self, Error, SerialPort, SerialPortBuilder};
 
 ////////////////////////////////////////////////////////////////
@@ -26,10 +28,13 @@ impl CommPort {
         match self {
             Self::Closed(_) => Ok(()),
             Self::Open(port) => {
-                *self = Self::Closed(serialport::new(
-                    port.name().expect("Failed to get port name"),
-                    port.baud_rate()?,
-                ));
+                *self = Self::Closed(
+                    serialport::new(
+                        port.name().expect("Failed to get port name"),
+                        port.baud_rate()?,
+                    )
+                    .timeout(Duration::from_millis(100)),
+                );
                 Ok(())
             }
         }

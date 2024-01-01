@@ -8,9 +8,10 @@ use crate::{
 };
 
 use super::{
-    frontend::{Dialog, FrontendRequest, Transaction},
+    frontend::{Dialog, FrontendRequest},
     measurement::MeasurementTest,
     state::ScriptState,
+    transaction::Transaction,
 };
 
 ////////////////////////////////////////////////////////////////

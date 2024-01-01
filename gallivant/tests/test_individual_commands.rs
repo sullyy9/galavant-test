@@ -1,8 +1,12 @@
+mod mocks;
+
 use std::time::Duration;
 
-use gallivant::{Dialog, Error, FrontendRequest, Interpreter};
+use gallivant::{Dialog, Error, FrontendRequest, Interpreter, TransactionStatus};
 
 type Request = FrontendRequest;
+
+use mocks::PortMock;
 
 ////////////////////////////////////////////////////////////////
 
@@ -153,12 +157,22 @@ fn test_print() {
 
             assert!(matches!(request, Ok(Request::TCUTransact(_))));
 
-            if let Ok(Request::TCUTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "P06747BF3\r".as_bytes().to_owned());
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let result = trans.evaluate(&tx);
-                assert!(matches!(result, Ok(Request::None)))
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, b"P06747BF3\r");
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
+
+                // Echo.
+                port.rxdata.extend(&port.txdata);
+                assert!(matches!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                ));
             }
         }
         Err(errors) => panic!("{:?}", errors),
@@ -180,12 +194,22 @@ fn test_settimeformat() {
 
             assert!(matches!(request, Ok(Request::TCUTransact(_))));
 
-            if let Ok(Request::TCUTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "P051B746605\r".as_bytes().to_owned());
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let result = trans.evaluate(&tx);
-                assert!(matches!(result, Ok(Request::None)))
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, b"P051B746605\r");
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
+
+                // Echo.
+                port.rxdata.extend(&port.txdata);
+                assert!(matches!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                ));
             }
         }
         Err(errors) => panic!("{:?}", errors),
@@ -207,12 +231,22 @@ fn test_setoption() {
 
             assert!(matches!(request, Ok(Request::TCUTransact(_))));
 
-            if let Ok(Request::TCUTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "P061B004F0608\r".as_bytes().to_owned());
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let result = trans.evaluate(&tx);
-                assert!(matches!(result, Ok(Request::None)))
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, b"P061B004F0608\r");
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
+
+                // Echo.
+                port.rxdata.extend(&port.txdata);
+                assert!(matches!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                ));
             }
         }
         Err(errors) => panic!("{:?}", errors),
@@ -234,12 +268,22 @@ fn test_tcuclose() {
 
             assert!(matches!(request, Ok(Request::TCUTransact(_))));
 
-            if let Ok(Request::TCUTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "C06\r".as_bytes().to_owned());
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let result = trans.evaluate(&tx);
-                assert!(matches!(result, Ok(Request::None)))
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, b"C06\r");
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
+
+                // Echo.
+                port.rxdata.extend(&port.txdata);
+                assert!(matches!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                ));
             }
         }
         Err(errors) => panic!("{:?}", errors),
@@ -261,12 +305,22 @@ fn test_tcuopen() {
 
             assert!(matches!(request, Ok(Request::TCUTransact(_))));
 
-            if let Ok(Request::TCUTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "O02\r".as_bytes().to_owned());
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let result = trans.evaluate(&tx);
-                assert!(matches!(result, Ok(Request::None)))
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, b"O02\r");
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
+
+                // Echo.
+                port.rxdata.extend(&port.txdata);
+                assert!(matches!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                ));
             }
         }
         Err(errors) => panic!("{:?}", errors),
@@ -288,16 +342,28 @@ fn test_tcutest() {
 
             assert!(matches!(request, Ok(Request::TCUTransact(_))));
 
-            if let Ok(Request::TCUTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "M03\r".as_bytes().to_owned());
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let result = trans.evaluate(&tx);
-                assert!(matches!(result, Ok(Request::TCUAwaitResponse(_))));
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, b"M03\r");
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
 
-                if let Request::TCUAwaitResponse(trans) = result.unwrap() {
-                    let result = trans.evaluate("AA1\r".as_bytes());
-                    assert!(matches!(result, Ok(Request::None)))
+                // Echo.
+                port.rxdata.extend(&port.txdata);
+                let result = transaction.process(&mut port);
+                assert!(matches!(result, Ok(TransactionStatus::Ongoing(_))));
+
+                // Measurement.
+                if let Ok(TransactionStatus::Ongoing(tr)) = result {
+                    port.rxdata.extend("AA1\r".as_bytes());
+                    assert!(matches!(
+                        tr.process(&mut port),
+                        Ok(TransactionStatus::Success)
+                    ))
                 }
             }
         }
@@ -320,12 +386,22 @@ fn test_printerset() {
 
             assert!(matches!(request, Ok(Request::TCUTransact(_))));
 
-            if let Ok(Request::TCUTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "P051B005302\r".as_bytes().to_owned());
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let result = trans.evaluate(&tx);
-                assert!(matches!(result, Ok(Request::None)))
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, b"P051B005302\r");
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
+
+                // Echo.
+                port.rxdata.extend(&port.txdata);
+                assert!(matches!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                ));
             }
         }
         Err(errors) => panic!("{:?}", errors),
@@ -347,16 +423,28 @@ fn test_printertest() {
 
             assert!(matches!(request, Ok(Request::TCUTransact(_))));
 
-            if let Ok(Request::TCUTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, "W051B004D03\r".as_bytes().to_owned());
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let result = trans.evaluate(&tx);
-                assert!(matches!(result, Ok(Request::TCUAwaitResponse(_))));
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, b"W051B004D03\r");
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
 
-                if let Request::TCUAwaitResponse(trans) = result.unwrap() {
-                    let result = trans.evaluate("AA1\r".as_bytes());
-                    assert!(matches!(result, Ok(Request::None)))
+                // Echo.
+                port.rxdata.extend(&port.txdata);
+                let result = transaction.process(&mut port);
+                assert!(matches!(result, Ok(TransactionStatus::Ongoing(_))));
+
+                // Measurement.
+                if let Ok(TransactionStatus::Ongoing(tr)) = result {
+                    port.rxdata.extend("AA1\r".as_bytes());
+                    assert!(matches!(
+                        tr.process(&mut port),
+                        Ok(TransactionStatus::Success)
+                    ))
                 }
             }
         }
@@ -493,14 +581,22 @@ fn test_usbprintertest() {
 
             assert!(matches!(request, Ok(Request::PrinterTransact(_))));
 
-            if let Ok(Request::PrinterTransact(trans)) = request {
-                let tx = trans.bytes().to_owned();
-                assert_eq!(tx, vec![0x1B, 0x00, b'M', 3]);
+            if let Ok(Request::TCUTransact(mut transaction)) = request {
+                let mut port = PortMock::new();
 
-                let resp = "AA1\r".as_bytes();
+                if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
+                    assert_eq!(port.txdata, vec![0x1B, 0x00, b'M', 3]);
+                    transaction = tr;
+                } else {
+                    panic!()
+                }
 
-                let result = trans.evaluate(resp);
-                assert!(matches!(result, Ok(Request::None)))
+                // Measurement.
+                port.rxdata.extend("AA1\r".as_bytes());
+                assert!(matches!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                ));
             }
         }
         Err(errors) => panic!("{:?}", errors),

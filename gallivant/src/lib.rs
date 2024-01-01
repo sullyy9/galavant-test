@@ -10,7 +10,7 @@ mod parse;
 
 pub use crate::{
     error::Error,
-    evaluation::{Dialog, FrontendRequest},
+    evaluation::{Dialog, FrontendRequest, TransactionStatus, Transaction, Device},
     interpreter::Interpreter,
 };
 

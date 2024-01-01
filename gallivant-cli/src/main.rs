@@ -2,13 +2,13 @@ mod args;
 mod mock;
 mod port;
 
-use std::io::Write;
+use std::{io::Write, time::Duration};
 
 use ariadne::Source;
 use clap::Parser;
 use serialport::{self, SerialPort};
 
-use gallivant::{FrontendRequest, Interpreter};
+use gallivant::{FrontendRequest, Interpreter, Transaction, TransactionStatus};
 
 use self::{args::Args, mock::MockTCUPort, port::CommPort};
 
@@ -40,15 +40,16 @@ fn main() {
         Some(port) if port == "mock" => Some(Box::new(MockTCUPort::new())),
         Some(port) => Some(
             serialport::new(port, 9600)
+                .timeout(Duration::from_millis(100))
                 .open()
                 .expect("Failed to open TCU port"),
         ),
         None => None,
     };
 
-    let mut printer = args
-        .printer
-        .map(|port| CommPort::from(serialport::new(port, 9600)));
+    let mut printer = args.printer.map(|port| {
+        CommPort::from(serialport::new(port, 9600).timeout(Duration::from_millis(100)))
+    });
 
     let script = std::fs::read_to_string(&args.script).expect("Failed to read script");
 
@@ -137,30 +138,8 @@ fn handle_request(
         },
 
         FrontendRequest::TCUTransact(transaction) => {
-            if let Some(tcu) = tcu {
-                tcu.write_all(transaction.bytes())
-                    .expect("TCU transmit error");
-                return Some(FrontendRequest::TCUAwaitResponse(transaction));
-            } else {
-                panic!("TCU port required but none given");
-            }
-        }
-
-        FrontendRequest::TCUAwaitResponse(transaction) => {
-            if let Some(tcu) = tcu {
-                let response = tcu
-                    .bytes_to_read()
-                    .map(|bytes| {
-                        let mut response = vec![0; bytes as usize];
-                        tcu.read_exact(&mut response).expect("TCU receive error");
-                        response
-                    })
-                    .expect("TCU receive error");
-
-                match transaction.evaluate(&response) {
-                    Ok(request) => return Some(request),
-                    Err(_) => todo!(),
-                }
+            if let Some(port) = tcu {
+                handle_transaction(transaction, port);
             } else {
                 panic!("TCU port required but none given");
             }
@@ -203,32 +182,7 @@ fn handle_request(
 
         FrontendRequest::PrinterTransact(transaction) => match printer {
             Some(CommPort::Open(port)) => {
-                port.write_all(transaction.bytes())
-                    .expect("Printer transmit error");
-                return Some(FrontendRequest::PrinterAwaitResponse(transaction));
-            }
-
-            Some(CommPort::Closed(_)) => {
-                panic!("Attempted to write to printer comm port but port is not open")
-            }
-            None => panic!("Printer port required but none given"),
-        },
-        FrontendRequest::PrinterAwaitResponse(transaction) => match printer {
-            Some(CommPort::Open(port)) => {
-                let response = port
-                    .bytes_to_read()
-                    .map(|bytes| {
-                        let mut response = vec![0; bytes as usize];
-                        port.read_exact(&mut response)
-                            .expect("Printer receive error");
-                        response
-                    })
-                    .expect("Printer receive error");
-
-                match transaction.evaluate(&response) {
-                    Ok(request) => return Some(request),
-                    Err(_) => todo!(),
-                }
+                handle_transaction(transaction, port);
             }
 
             Some(CommPort::Closed(_)) => {
@@ -239,6 +193,23 @@ fn handle_request(
     }
 
     None
+}
+
+////////////////////////////////////////////////////////////////
+
+fn handle_transaction(mut transaction: Transaction, port: &mut Box<dyn SerialPort>) {
+    // Send bytes.
+    loop {
+        match transaction.process(port) {
+            Ok(status) => {
+                transaction = match status {
+                    TransactionStatus::Success => break,
+                    TransactionStatus::Ongoing(transaction) => transaction,
+                }
+            }
+            Err(_) => todo!(),
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////
