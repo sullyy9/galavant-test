@@ -2,7 +2,10 @@ mod args;
 mod mock;
 mod port;
 
-use std::{io::Write, time::Duration};
+use std::{
+    io::{ErrorKind, Write},
+    time::Duration,
+};
 
 use ariadne::Source;
 use clap::Parser;
@@ -149,7 +152,13 @@ fn handle_request(
             if let Some(tcu) = tcu {
                 tcu.flush().expect("TCU transmit error");
                 let mut buffer = Vec::new();
-                tcu.read_to_end(&mut buffer).expect("TCU receive error");
+                match tcu.read_to_end(&mut buffer) {
+                    Ok(_) => (),
+                    Err(error) => match error.kind() {
+                        ErrorKind::TimedOut => (),
+                        _ => panic!("TCU receive error"),
+                    },
+                };
             } else {
                 panic!("TCU port required but none given");
             }
@@ -171,15 +180,14 @@ fn handle_request(
             }
         }
 
-        FrontendRequest::PrinterTransmit(tx) => match printer {
-            Some(CommPort::Open(port)) => port.write_all(&tx).expect("Printer transmit error"),
+        // FrontendRequest::PrinterTransmit(tx) => match printer {
+        //     Some(CommPort::Open(port)) => port.write_all(&tx).expect("Printer transmit error"),
 
-            Some(CommPort::Closed(_)) => {
-                panic!("Attempted to write to printer comm port but port is not open")
-            }
-            None => panic!("Printer port required but none given"),
-        },
-
+        //     Some(CommPort::Closed(_)) => {
+        //         panic!("Attempted to write to printer comm port but port is not open")
+        //     }
+        //     None => panic!("Printer port required but none given"),
+        // },
         FrontendRequest::PrinterTransact(transaction) => match printer {
             Some(CommPort::Open(port)) => {
                 handle_transaction(transaction, port);

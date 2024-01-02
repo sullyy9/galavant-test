@@ -22,7 +22,6 @@ pub enum FrontendRequest {
     // Requests for direct communication with the printer i.e. not via the TCU.
     PrinterOpen,
     PrinterClose,
-    PrinterTransmit(Vec<u8>),
     PrinterTransact(Transaction),
 }
 

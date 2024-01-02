@@ -336,7 +336,11 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                 }
             }
 
-            Ok(FrontendRequest::PrinterTransmit(bytes))
+            Ok(FrontendRequest::PrinterTransact(Transaction::with_printer(
+                expr.clone(),
+                bytes,
+                None,
+            )))
         }
 
         ExprKind::USBSetTimeFormat(arg) => {
@@ -347,7 +351,11 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     vec![0x1B, b't', b'f', *uint as u8]
                 };
 
-                return Ok(FrontendRequest::PrinterTransmit(bytes));
+                return Ok(FrontendRequest::PrinterTransact(Transaction::with_printer(
+                    expr.clone(),
+                    bytes,
+                    None,
+                )));
             }
 
             panic!()
@@ -373,7 +381,11 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
 
             bytes.extend_from_slice(datetime.as_bytes());
 
-            Ok(FrontendRequest::PrinterTransmit(bytes))
+            Ok(FrontendRequest::PrinterTransact(Transaction::with_printer(
+                expr.clone(),
+                bytes,
+                None,
+            )))
         }
 
         ExprKind::USBSetOption { option, setting } => {
@@ -389,7 +401,11 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     vec![0x1B, 0x00, b'O', *option as u8, *setting as u8]
                 };
 
-                return Ok(FrontendRequest::PrinterTransmit(bytes));
+                return Ok(FrontendRequest::PrinterTransact(Transaction::with_printer(
+                    expr.clone(),
+                    bytes,
+                    None,
+                )));
             }
 
             panic!("Invalid USBSETOPTION args {option:?}, {setting:?}")
@@ -405,7 +421,11 @@ pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest,
                     vec![0x1B, 0x00, b'S', *channel as u8]
                 };
 
-                return Ok(FrontendRequest::PrinterTransmit(bytes));
+                return Ok(FrontendRequest::PrinterTransact(Transaction::with_printer(
+                    expr.clone(),
+                    bytes,
+                    None,
+                )));
             }
 
             panic!("Invalid USBPRINTERSET arg {arg:?}")

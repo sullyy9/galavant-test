@@ -500,7 +500,20 @@ fn test_usbprint() {
             let mut expected = "test".as_bytes().to_owned();
             expected.extend_from_slice(&[45, 0xD4]);
 
-            assert_eq!(requests[0], Ok(Request::PrinterTransmit(expected)))
+            if let Ok(Request::PrinterTransact(transaction)) = requests[0].clone() {
+                let mut port = PortMock::new();
+                assert_eq!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                );
+
+                assert_eq!(port.txdata, expected)
+            } else {
+                panic!(
+                    "Expected Request::PrinterTransact but found {:?}",
+                    requests[1]
+                )
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -517,10 +530,21 @@ fn test_usbsettimeformat() {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(
-                requests[0],
-                Ok(Request::PrinterTransmit(vec![0x1B, b't', b'f', 6]))
-            )
+
+            if let Ok(Request::PrinterTransact(transaction)) = requests[0].clone() {
+                let mut port = PortMock::new();
+                assert_eq!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                );
+
+                assert_eq!(port.txdata, vec![0x1B, b't', b'f', 6])
+            } else {
+                panic!(
+                    "Expected Request::PrinterTransact but found {:?}",
+                    requests[1]
+                )
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -537,10 +561,21 @@ fn test_usbsetoption() {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(
-                requests[0],
-                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, b'O', 6, 7]))
-            )
+
+            if let Ok(Request::PrinterTransact(transaction)) = requests[0].clone() {
+                let mut port = PortMock::new();
+                assert_eq!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                );
+
+                assert_eq!(port.txdata, vec![0x1B, 0x00, b'O', 6, 7])
+            } else {
+                panic!(
+                    "Expected Request::PrinterTransact but found {:?}",
+                    requests[1]
+                )
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -557,10 +592,21 @@ fn test_usbprinterset() {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(
-                requests[0],
-                Ok(Request::PrinterTransmit(vec![0x1B, 0x00, b'S', 2]))
-            )
+
+            if let Ok(Request::PrinterTransact(transaction)) = requests[0].clone() {
+                let mut port = PortMock::new();
+                assert_eq!(
+                    transaction.process(&mut port),
+                    Ok(TransactionStatus::Success)
+                );
+
+                assert_eq!(port.txdata, vec![0x1B, 0x00, b'S', 2])
+            } else {
+                panic!(
+                    "Expected Request::PrinterTransact but found {:?}",
+                    requests[1]
+                )
+            }
         }
         Err(errors) => panic!("{:?}", errors),
     }
