@@ -2,7 +2,7 @@ use std::io::{self, Read, Write};
 
 use crate::{error::Error, expression::Expr};
 
-use super::measurement::MeasurementTest;
+use super::measurement::{self, Measurement, MeasurementTest};
 
 ////////////////////////////////////////////////////////////////
 // types
@@ -148,10 +148,19 @@ impl Transaction {
 
         // Test the measurement.
         if let Some(test) = self.test {
-            if let Some(retry) = test.evaluate(measurement.unwrap())? {
-                self.test = Some(retry);
-                self.txcomplete = false;
-                return Ok(TransactionStatus::Ongoing(self));
+            let measurement = *measurement.unwrap(); // Already checked that the measurement exists.
+            let measurement = Measurement::try_from(measurement)
+                .unwrap_or_else(|_| todo!("Handle measurement parsing failure"));
+
+            match test.test(measurement) {
+                Ok(_) => (),
+                Err(measurement::Error::TestFailedRetryable(test)) => {
+                    self.test = Some(test);
+                    self.txcomplete = false;
+                    return Ok(TransactionStatus::Ongoing(self));
+                }
+                Err(measurement::Error::TestFailed) => todo!(),
+                _ => todo!(),
             }
         }
 
