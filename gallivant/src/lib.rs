@@ -1,17 +1,15 @@
-mod error;
-mod evaluation;
-mod expression;
+mod execution;
 mod interpreter;
-mod parse;
+mod syntax;
 
 ////////////////////////////////////////////////////////////////
 // exports
 ////////////////////////////////////////////////////////////////
 
 pub use crate::{
-    error::Error,
-    evaluation::{Dialog, FrontendRequest, TransactionStatus, Transaction, Device},
+    execution::{Device, Dialog, FrontendRequest, Transaction, TransactionStatus},
     interpreter::Interpreter,
+    syntax::Error,
 };
 
 ////////////////////////////////////////////////////////////////

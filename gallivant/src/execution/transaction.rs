@@ -1,6 +1,6 @@
 use std::io::{self, Read, Write};
 
-use crate::{error::Error, expression::Expr};
+use crate::syntax::{Error, Expr};
 
 use super::measurement::{self, Measurement, MeasurementTest};
 
@@ -40,6 +40,23 @@ pub enum Device {
 }
 
 ////////////////////////////////////////////////////////////////
+
+// #[derive(Debug)]
+// pub enum ErrorReason {
+//     TestFailure,
+//     IOError(Box<dyn std::error::Error>),
+// }
+
+// ////////////////////////////////////////////////////////////////
+
+// #[derive(Debug)]
+// pub struct Error {
+//     expression: Expr,
+//     reason: ErrorReason,
+//     detail: String,
+// }
+
+////////////////////////////////////////////////////////////////
 // construction / conversion
 ////////////////////////////////////////////////////////////////
 
@@ -67,6 +84,21 @@ impl Transaction {
     }
 }
 
+// impl Error {
+//     fn from_io_error(transaction: &Transaction, error: std::io::Error) -> Self {
+//         Self {
+//             expression: transaction.expression.clone(),
+//             reason: ErrorReason::IOError(Box::new(error)),
+//             detail: String::new(),
+//         }
+//     }
+
+//     fn with_detail(mut self, detail: &str) -> Self {
+//         self.detail = detail.to_owned();
+//         self
+//     }
+// }
+
 ////////////////////////////////////////////////////////////////
 // methods
 ////////////////////////////////////////////////////////////////
@@ -77,9 +109,13 @@ impl Transaction {
     }
 
     pub fn process<T: Read + Write>(mut self, port: &mut T) -> Result<TransactionStatus, Error> {
+        // let into_ioerror = |error| Error::from_io_error(&self, error);
+
         // Send bytes if needed.
         if !self.txcomplete {
-            port.write_all(&self.txbytes).expect("Port write error");
+            // port.write_all(&self.txbytes).map_err(into_ioerror)?;
+
+            port.write_all(&self.txbytes).expect("TCU write error");
             self.txcomplete = true;
 
             return if self.device == Device::Printer && self.test.is_none() {

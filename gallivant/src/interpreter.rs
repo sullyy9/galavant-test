@@ -1,8 +1,6 @@
 use super::{
-    error::Error,
-    evaluation::{evaluate, FrontendRequest, ScriptState},
-    expression::Expr,
-    parse::parse_from_str,
+    execution::FrontendRequest,
+    syntax::{evaluate, parse_from_str, Error, EvalState, Expr},
 };
 
 ////////////////////////////////////////////////////////////////
@@ -15,7 +13,7 @@ use super::{
 pub struct Interpreter {
     ast: Vec<Expr>,
     index: usize,
-    state: ScriptState,
+    state: EvalState,
 }
 
 ////////////////////////////////////////////////////////////////
@@ -27,7 +25,7 @@ impl Interpreter {
         Ok(Self {
             ast: parse_from_str(script)?,
             index: 0,
-            state: ScriptState::new(),
+            state: EvalState::new(),
         })
     }
 }

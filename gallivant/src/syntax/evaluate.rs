@@ -2,16 +2,12 @@ use std::time::Duration;
 
 use chrono::{Datelike, Local, Timelike};
 
-use crate::{
-    error::Error,
-    expression::{Expr, ExprKind},
-};
+use crate::execution::{Dialog, FrontendRequest, MeasurementTest, Transaction};
 
 use super::{
-    frontend::{Dialog, FrontendRequest},
-    measurement::MeasurementTest,
-    state::ScriptState,
-    transaction::Transaction,
+    error::Error,
+    expression::{Expr, ExprKind},
+    state::EvalState,
 };
 
 ////////////////////////////////////////////////////////////////
@@ -25,7 +21,7 @@ fn tcu_format_byte(byte: u8) -> Vec<u8> {
 
 ////////////////////////////////////////////////////////////////
 
-pub fn evaluate(expr: &Expr, state: &mut ScriptState) -> Result<FrontendRequest, Error> {
+pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, Error> {
     match expr.kind() {
         ExprKind::String(_) => panic!("Orphaned String"),
         ExprKind::UInt(_) => panic!("Orphaned UInt"),

@@ -5,7 +5,7 @@
 /// Contains any state that needs to persist through script evaluation.
 ///
 #[derive(Default, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ScriptState {
+pub struct EvalState {
     pub(super) hpmode: bool,
 }
 
@@ -13,7 +13,7 @@ pub struct ScriptState {
 // construction / conversion
 ////////////////////////////////////////////////////////////////
 
-impl ScriptState {
+impl EvalState {
     pub fn new() -> Self {
         Self::default()
     }

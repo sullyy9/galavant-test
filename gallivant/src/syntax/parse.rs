@@ -4,7 +4,7 @@ use chumsky::{
     text::{newline, Character},
 };
 
-use crate::{
+use super::{
     error::{Error, Reason},
     expression::{Expr, ExprKind},
 };
@@ -366,7 +366,7 @@ mod tests {
 
     use ariadne::Source;
 
-    use crate::error::Reason;
+    use crate::syntax::error::Reason;
 
     use super::*;
 
