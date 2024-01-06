@@ -174,7 +174,7 @@ fn handle_request(
 
         FrontendRequest::PrinterClose => {
             if let Some(port) = printer {
-                port.close().expect("Failed to open printer comm port");
+                port.close().expect("Failed to close printer comm port");
             } else {
                 panic!("Printer port required but none given");
             }
