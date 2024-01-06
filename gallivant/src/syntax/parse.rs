@@ -6,19 +6,13 @@ use chumsky::{
 
 use super::{
     error::{Error, Reason},
-    expression::{Expr, ExprKind},
+    expression::{Expr, ExprKind, ParsedExpr},
 };
 
 ////////////////////////////////////////////////////////////////
 
-pub fn parse_from_str(script: &str) -> Result<Vec<Expr>, Vec<Error>> {
+pub fn parse_from_str(script: &str) -> Result<Vec<ParsedExpr>, Vec<Error>> {
     parser().parse(script)
-}
-
-////////////////////////////////////////////////////////////////
-
-fn default<T: Default>() -> T {
-    Default::default()
 }
 
 ////////////////////////////////////////////////////////////////
@@ -68,9 +62,9 @@ fn uint(radix: u32) -> impl Parser<char, String, Error = Error> + Copy + Clone {
 fn command_with_param<'a, E>(
     cmd: &'a str,
     param_parser: E,
-) -> impl Parser<char, Box<Expr>, Error = Error> + 'a
+) -> impl Parser<char, Box<ParsedExpr>, Error = Error> + 'a
 where
-    E: Parser<char, Expr, Error = Error> + 'a,
+    E: Parser<char, ParsedExpr, Error = Error> + 'a,
 {
     return text::keyword(cmd)
         .then(whitespace())
@@ -96,9 +90,9 @@ fn command_with_2_params<'a, E>(
     cmd: &'a str,
     parser1: E,
     parser2: E,
-) -> impl Parser<char, (Box<Expr>, Box<Expr>), Error = Error> + 'a
+) -> impl Parser<char, (Box<ParsedExpr>, Box<ParsedExpr>), Error = Error> + 'a
 where
-    E: Parser<char, Expr, Error = Error> + 'a,
+    E: Parser<char, ParsedExpr, Error = Error> + 'a,
 {
     return text::keyword(cmd)
         .then(whitespace())
@@ -127,9 +121,19 @@ where
 fn command_with_5_params<'a, E>(
     cmd: &'a str,
     parser: E,
-) -> impl Parser<char, (Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>), Error = Error> + 'a
+) -> impl Parser<
+    char,
+    (
+        Box<ParsedExpr>,
+        Box<ParsedExpr>,
+        Box<ParsedExpr>,
+        Box<ParsedExpr>,
+        Box<ParsedExpr>,
+    ),
+    Error = Error,
+> + 'a
 where
-    E: Parser<char, Expr, Error = Error> + Clone + 'a,
+    E: Parser<char, ParsedExpr, Error = Error> + Clone + 'a,
 {
     return text::keyword(cmd)
         .then(whitespace())
@@ -168,9 +172,9 @@ where
 fn command_with_params<'a, E>(
     cmd: &'a str,
     param_parser: E,
-) -> impl Parser<char, Vec<Expr>, Error = Error> + 'a
+) -> impl Parser<char, Vec<ParsedExpr>, Error = Error> + 'a
 where
-    E: Parser<char, Vec<Expr>, Error = Error> + 'a,
+    E: Parser<char, Vec<ParsedExpr>, Error = Error> + 'a,
 {
     text::keyword(cmd)
         .then(whitespace())
@@ -179,31 +183,31 @@ where
 
 ////////////////////////////////////////////////////////////////
 
-fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
+fn parser() -> impl Parser<char, Vec<ParsedExpr>, Error = Error> {
     // TODO: Allow escaped string delimeters within strings. (Don't think it was allowed on original
     // runtest but would be nice to have).
     let string = filter(|c| *c != '"')
         .repeated()
         .delimited_by(just('"'), just('"'))
         .map(String::from_iter)
-        .map(ExprKind::String);
+        .map(Expr::String);
 
-    let uint_dec = uint(10).map(|s: String| ExprKind::UInt(s.parse().unwrap()));
+    let uint_dec = uint(10).map(|s: String| Expr::UInt(s.parse().unwrap()));
     let uint_hex = just("$")
         .ignore_then(uint(16))
-        .map(|s: String| ExprKind::UInt(u32::from_str_radix(&s, 16).unwrap()));
+        .map(|s: String| Expr::UInt(u32::from_str_radix(&s, 16).unwrap()));
 
     let uint = choice((uint_dec, uint_hex));
 
     let expr = choice((string, uint))
-        .map_with_span(Expr::from_kind_and_span)
+        .map_with_span(ParsedExpr::from_kind_and_span)
         .padded_by(whitespace());
     let multi_expr = expr.separated_by(just(',').padded_by(whitespace()));
 
     let string_arg = expr.validate(|arg, span, emit| {
-        if !matches!(arg.kind(), ExprKind::String(_)) {
-            let expected = [&ExprKind::String(default())];
-            let found = arg.kind();
+        if !matches!(arg.expresssion(), Expr::String(_)) {
+            let expected = [ExprKind::String];
+            let found = ExprKind::from(arg.expresssion());
 
             emit(Error::argument_type(span, expected, found).with_help(
                 "If the argument was intended to be a string it should be delimited by \"\"",
@@ -214,13 +218,13 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
     });
 
     let uint_arg = expr.validate(|arg, span, emit| {
-        if !matches!(arg.kind(), ExprKind::UInt(_)) {
-            let expected = [&ExprKind::UInt(default())];
-            let found = arg.kind();
+        if !matches!(arg.expresssion(), Expr::UInt(_)) {
+            let expected = [ExprKind::UInt];
+            let found = ExprKind::from(arg.expresssion());
 
             let mut error = Error::argument_type(span, expected, found);
 
-            if let ExprKind::String(string) = arg.kind() {
+            if let Expr::String(string) = arg.expresssion() {
                 if string.chars().all(|c| c.is_numeric()) {
                     error = error.with_help("If the argument was intended to be an unsigned integer, try removing the enclosing \"\"");
                 } else if string.starts_with('$') && string.chars().skip(1).all(|c| c.is_ascii_hexdigit()) {
@@ -234,7 +238,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
     });
 
     let byte_arg = uint_arg.validate(|arg, span, emit| {
-        if let ExprKind::UInt(value) = arg.kind() {
+        if let Expr::UInt(value) = arg.expresssion() {
             if *value > 255 {
                 emit(Error::argument_value_size(span, *value, (0, 255)))
             }
@@ -248,30 +252,30 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
     let script_comment = just(';')
         .ignore_then(take_until(choice((newline(), end())).rewind()))
         .map(|(s, _)| String::from_iter(s))
-        .map(ExprKind::ScriptComment)
-        .map_with_span(Expr::from_kind_and_span)
+        .map(Expr::ScriptComment)
+        .map_with_span(ParsedExpr::from_kind_and_span)
         .padded_by(whitespace());
 
     ////////////////
 
-    let hpmode = text::keyword("HPMODE").to(ExprKind::HPMode);
-    let comment = command_with_param("COMMENT", string_arg).map(ExprKind::Comment);
-    let wait = command_with_param("WAIT", uint_arg).map(ExprKind::Wait);
-    let opendialog = command_with_param("OPENDIALOG", string_arg).map(ExprKind::OpenDialog);
-    let waitdialog = command_with_param("WAITDIALOG", string_arg).map(ExprKind::WaitDialog);
-    let flush = text::keyword("FLUSH").to(ExprKind::Flush);
-    let protocol = text::keyword("PROTOCOL").to(ExprKind::Protocol);
-    let print = command_with_params("PRINT", multi_expr).map(ExprKind::Print);
-    let settimeformat = command_with_param("SETTIMEFORMAT", byte_arg).map(ExprKind::SetTimeFormat);
-    let settime = text::keyword("SETTIME").to(ExprKind::SetTime);
+    let hpmode = text::keyword("HPMODE").to(Expr::HPMode);
+    let comment = command_with_param("COMMENT", string_arg).map(Expr::Comment);
+    let wait = command_with_param("WAIT", uint_arg).map(Expr::Wait);
+    let opendialog = command_with_param("OPENDIALOG", string_arg).map(Expr::OpenDialog);
+    let waitdialog = command_with_param("WAITDIALOG", string_arg).map(Expr::WaitDialog);
+    let flush = text::keyword("FLUSH").to(Expr::Flush);
+    let protocol = text::keyword("PROTOCOL").to(Expr::Protocol);
+    let print = command_with_params("PRINT", multi_expr).map(Expr::Print);
+    let settimeformat = command_with_param("SETTIMEFORMAT", byte_arg).map(Expr::SetTimeFormat);
+    let settime = text::keyword("SETTIME").to(Expr::SetTime);
     let setoption = command_with_2_params("SETOPTION", byte_arg, byte_arg)
-        .map(|(option, setting)| ExprKind::SetOption { option, setting });
+        .map(|(option, setting)| Expr::SetOption { option, setting });
 
-    let tcuclose = command_with_param("TCUCLOSE", byte_arg).map(ExprKind::TCUClose);
-    let tcuopen = command_with_param("TCUOPEN", byte_arg).map(ExprKind::TCUOpen);
+    let tcuclose = command_with_param("TCUCLOSE", byte_arg).map(Expr::TCUClose);
+    let tcuopen = command_with_param("TCUOPEN", byte_arg).map(Expr::TCUOpen);
     let tcutest =
         command_with_5_params("TCUTEST", expr).map(|(channel, min, max, retries, message)| {
-            ExprKind::TCUTest {
+            Expr::TCUTest {
                 channel,
                 min,
                 max,
@@ -280,10 +284,10 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
             }
         });
 
-    let printerset = command_with_param("PRINTERSET", byte_arg).map(ExprKind::PrinterSet);
+    let printerset = command_with_param("PRINTERSET", byte_arg).map(Expr::PrinterSet);
     let printertest =
         command_with_5_params("PRINTERTEST", expr).map(|(channel, min, max, retries, message)| {
-            ExprKind::PrinterTest {
+            Expr::PrinterTest {
                 channel,
                 min,
                 max,
@@ -292,18 +296,18 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
             }
         });
 
-    let usbopen = text::keyword("USBOPEN").to(ExprKind::USBOpen);
-    let usbclose = text::keyword("USBCLOSE").to(ExprKind::USBClose);
-    let usbprint = command_with_params("USBPRINT", multi_expr).map(ExprKind::USBPrint);
+    let usbopen = text::keyword("USBOPEN").to(Expr::USBOpen);
+    let usbclose = text::keyword("USBCLOSE").to(Expr::USBClose);
+    let usbprint = command_with_params("USBPRINT", multi_expr).map(Expr::USBPrint);
     let usbsettimeformat =
-        command_with_param("USBSETTIMEFORMAT", byte_arg).map(ExprKind::USBSetTimeFormat);
-    let usbsettime = text::keyword("USBSETTIME").to(ExprKind::USBSetTime);
+        command_with_param("USBSETTIMEFORMAT", byte_arg).map(Expr::USBSetTimeFormat);
+    let usbsettime = text::keyword("USBSETTIME").to(Expr::USBSetTime);
     let usbsetoption = command_with_2_params("USBSETOPTION", byte_arg, byte_arg)
-        .map(|(option, setting)| ExprKind::USBSetOption { option, setting });
+        .map(|(option, setting)| Expr::USBSetOption { option, setting });
 
-    let usbprinterset = command_with_param("USBPRINTERSET", byte_arg).map(ExprKind::USBPrinterSet);
+    let usbprinterset = command_with_param("USBPRINTERSET", byte_arg).map(Expr::USBPrinterSet);
     let usbprintertest = command_with_5_params("USBPRINTERTEST", expr).map(
-        |(channel, min, max, retries, message)| ExprKind::USBPrinterTest {
+        |(channel, min, max, retries, message)| Expr::USBPrinterTest {
             channel,
             min,
             max,
@@ -338,7 +342,7 @@ fn parser() -> impl Parser<char, Vec<Expr>, Error = Error> {
         usbprinterset,
         usbprintertest,
     ))
-    .map_with_span(Expr::from_kind_and_span)
+    .map_with_span(ParsedExpr::from_kind_and_span)
     .padded_by(whitespace());
 
     ////////////////
@@ -425,56 +429,56 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
         let parsed_ast = parser().parse(script);
 
         let expected_ast = [
-            ExprKind::HPMode,
-            ExprKind::Comment(Box::new(Expr::from_str_default("Test"))),
-            ExprKind::Wait(Box::new(Expr::from_uint_default(1234))),
-            ExprKind::OpenDialog(Box::new(Expr::from_str_default("Hello"))),
-            ExprKind::WaitDialog(Box::new(Expr::from_str_default("PLEASE WAIT"))),
-            ExprKind::Flush,
-            ExprKind::Protocol,
-            ExprKind::Print(vec![Expr::from_str_default("print me")]),
-            ExprKind::SetTimeFormat(Box::new(Expr::from_uint_default(0xA6))),
-            ExprKind::SetTime,
-            ExprKind::SetOption {
-                option: Box::new(Expr::from_uint_default(4)),
-                setting: Box::new(Expr::from_uint_default(6)),
+            Expr::HPMode,
+            Expr::Comment(Box::new(ParsedExpr::from_str_default("Test"))),
+            Expr::Wait(Box::new(ParsedExpr::from_uint_default(1234))),
+            Expr::OpenDialog(Box::new(ParsedExpr::from_str_default("Hello"))),
+            Expr::WaitDialog(Box::new(ParsedExpr::from_str_default("PLEASE WAIT"))),
+            Expr::Flush,
+            Expr::Protocol,
+            Expr::Print(vec![ParsedExpr::from_str_default("print me")]),
+            Expr::SetTimeFormat(Box::new(ParsedExpr::from_uint_default(0xA6))),
+            Expr::SetTime,
+            Expr::SetOption {
+                option: Box::new(ParsedExpr::from_uint_default(4)),
+                setting: Box::new(ParsedExpr::from_uint_default(6)),
             },
-            ExprKind::TCUClose(Box::new(Expr::from_uint_default(4))),
-            ExprKind::TCUOpen(Box::new(Expr::from_uint_default(0xF))),
-            ExprKind::TCUTest {
-                channel: Box::new(Expr::from_uint_default(5)),
-                min: Box::new(Expr::from_uint_default(12000)),
-                max: Box::new(Expr::from_uint_default(56000)),
-                retries: Box::new(Expr::from_uint_default(0)),
-                message: Box::new(Expr::from_str_default("error")),
+            Expr::TCUClose(Box::new(ParsedExpr::from_uint_default(4))),
+            Expr::TCUOpen(Box::new(ParsedExpr::from_uint_default(0xF))),
+            Expr::TCUTest {
+                channel: Box::new(ParsedExpr::from_uint_default(5)),
+                min: Box::new(ParsedExpr::from_uint_default(12000)),
+                max: Box::new(ParsedExpr::from_uint_default(56000)),
+                retries: Box::new(ParsedExpr::from_uint_default(0)),
+                message: Box::new(ParsedExpr::from_str_default("error")),
             },
-            ExprKind::PrinterSet(Box::new(Expr::from_uint_default(1))),
-            ExprKind::PrinterTest {
-                channel: Box::new(Expr::from_uint_default(4)),
-                min: Box::new(Expr::from_uint_default(133)),
-                max: Box::new(Expr::from_uint_default(987)),
-                retries: Box::new(Expr::from_uint_default(5)),
-                message: Box::new(Expr::from_str_default("error message")),
+            Expr::PrinterSet(Box::new(ParsedExpr::from_uint_default(1))),
+            Expr::PrinterTest {
+                channel: Box::new(ParsedExpr::from_uint_default(4)),
+                min: Box::new(ParsedExpr::from_uint_default(133)),
+                max: Box::new(ParsedExpr::from_uint_default(987)),
+                retries: Box::new(ParsedExpr::from_uint_default(5)),
+                message: Box::new(ParsedExpr::from_str_default("error message")),
             },
-            ExprKind::USBOpen,
-            ExprKind::USBClose,
-            ExprKind::USBPrint(vec![Expr::from_str_default("Look at me I can print")]),
-            ExprKind::USBSetTimeFormat(Box::new(Expr::from_uint_default(5))),
-            ExprKind::USBSetTime,
-            ExprKind::USBSetOption {
-                option: Box::new(Expr::from_uint_default(5)),
-                setting: Box::new(Expr::from_uint_default(9)),
+            Expr::USBOpen,
+            Expr::USBClose,
+            Expr::USBPrint(vec![ParsedExpr::from_str_default("Look at me I can print")]),
+            Expr::USBSetTimeFormat(Box::new(ParsedExpr::from_uint_default(5))),
+            Expr::USBSetTime,
+            Expr::USBSetOption {
+                option: Box::new(ParsedExpr::from_uint_default(5)),
+                setting: Box::new(ParsedExpr::from_uint_default(9)),
             },
-            ExprKind::USBPrinterSet(Box::new(Expr::from_uint_default(6))),
-            ExprKind::USBPrinterTest {
-                channel: Box::new(Expr::from_uint_default(4)),
-                min: Box::new(Expr::from_uint_default(133)),
-                max: Box::new(Expr::from_uint_default(987)),
-                retries: Box::new(Expr::from_uint_default(5)),
-                message: Box::new(Expr::from_str_default("error message")),
+            Expr::USBPrinterSet(Box::new(ParsedExpr::from_uint_default(6))),
+            Expr::USBPrinterTest {
+                channel: Box::new(ParsedExpr::from_uint_default(4)),
+                min: Box::new(ParsedExpr::from_uint_default(133)),
+                max: Box::new(ParsedExpr::from_uint_default(987)),
+                retries: Box::new(ParsedExpr::from_uint_default(5)),
+                message: Box::new(ParsedExpr::from_str_default("error message")),
             },
         ];
-        let expected_ast = expected_ast.map(Expr::from_kind_default);
+        let expected_ast = expected_ast.map(ParsedExpr::from_kind_default);
 
         match parsed_ast {
             Ok(ast) => {
@@ -518,9 +522,9 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
                 assert_eq!(exprs.len(), 1);
                 assert_eq!(
                     exprs[0],
-                    Expr::from_kind_default(ExprKind::Comment(Box::new(Expr::from_str_default(
-                        "This is a comment 1234"
-                    ))))
+                    ParsedExpr::from_kind_default(Expr::Comment(Box::new(
+                        ParsedExpr::from_str_default("This is a comment 1234")
+                    )))
                 )
             }
             Err(errors) => panic!("{:?}", errors),
@@ -538,9 +542,9 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
                 assert_eq!(exprs.len(), 1);
                 assert_eq!(
                     exprs[0],
-                    Expr::from_kind_default(ExprKind::TCUOpen(Box::new(Expr::from_uint_default(
-                        0x0C
-                    ))))
+                    ParsedExpr::from_kind_default(Expr::TCUOpen(Box::new(
+                        ParsedExpr::from_uint_default(0x0C)
+                    )))
                 )
             }
             Err(errors) => print_error_reports(script, &errors),
@@ -558,9 +562,9 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
                 assert_eq!(exprs.len(), 1);
                 assert_eq!(
                     exprs[0],
-                    Expr::from_kind_default(ExprKind::TCUOpen(Box::new(Expr::from_uint_default(
-                        0
-                    ))))
+                    ParsedExpr::from_kind_default(Expr::TCUOpen(Box::new(
+                        ParsedExpr::from_uint_default(0)
+                    )))
                 )
             }
             Err(errors) => print_error_reports(script, &errors),
@@ -578,9 +582,9 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
                 assert_eq!(exprs.len(), 1);
                 assert_eq!(
                     exprs[0],
-                    Expr::from_kind_default(ExprKind::TCUOpen(Box::new(Expr::from_uint_default(
-                        0
-                    ))))
+                    ParsedExpr::from_kind_default(Expr::TCUOpen(Box::new(
+                        ParsedExpr::from_uint_default(0)
+                    )))
                 )
             }
             Err(errors) => print_error_reports(script, &errors),
@@ -710,8 +714,8 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
                 assert_eq!(ast.len(), 1);
                 let expr = ast.first().unwrap();
                 assert_eq!(
-                    *expr.kind(),
-                    ExprKind::ScriptComment("Test comment".to_owned())
+                    *expr.expresssion(),
+                    Expr::ScriptComment("Test comment".to_owned())
                 )
             }
 
@@ -734,19 +738,28 @@ PRINT "test" ; Comment
             Ok(ast) => {
                 assert_eq!(ast.len(), 4);
                 let expr = &ast[0];
-                assert_eq!(*expr.kind(), ExprKind::ScriptComment("Comment".to_owned()));
+                assert_eq!(
+                    *expr.expresssion(),
+                    Expr::ScriptComment("Comment".to_owned())
+                );
 
                 let expr = &ast[1];
                 assert_eq!(
-                    *expr.kind(),
-                    ExprKind::Print(vec![Expr::from_str_default("test")])
+                    *expr.expresssion(),
+                    Expr::Print(vec![ParsedExpr::from_str_default("test")])
                 );
 
                 let expr = &ast[2];
-                assert_eq!(*expr.kind(), ExprKind::ScriptComment(" Comment".to_owned()));
+                assert_eq!(
+                    *expr.expresssion(),
+                    Expr::ScriptComment(" Comment".to_owned())
+                );
 
                 let expr = &ast[3];
-                assert_eq!(*expr.kind(), ExprKind::ScriptComment("Comment".to_owned()));
+                assert_eq!(
+                    *expr.expresssion(),
+                    Expr::ScriptComment("Comment".to_owned())
+                );
             }
 
             Err(errors) => print_error_reports(script, &errors),
@@ -769,20 +782,20 @@ PRINT "test" ; Comment
                 assert_eq!(ast.len(), 3);
                 let expr = &ast[0];
                 assert_eq!(
-                    *expr.kind(),
-                    ExprKind::ScriptComment(";;;;;Comment".to_owned())
+                    *expr.expresssion(),
+                    Expr::ScriptComment(";;;;;Comment".to_owned())
                 );
 
                 let expr = &ast[1];
                 assert_eq!(
-                    *expr.kind(),
-                    ExprKind::ScriptComment(" Comment ;;;; Comment ;;;".to_owned())
+                    *expr.expresssion(),
+                    Expr::ScriptComment(" Comment ;;;; Comment ;;;".to_owned())
                 );
 
                 let expr = &ast[2];
                 assert_eq!(
-                    *expr.kind(),
-                    ExprKind::ScriptComment(";;;Comment;;;".to_owned())
+                    *expr.expresssion(),
+                    Expr::ScriptComment(";;;Comment;;;".to_owned())
                 );
             }
 
@@ -802,8 +815,8 @@ PRINT "test" ; Comment
                 assert_eq!(ast.len(), 1);
                 let expr = ast.first().unwrap();
                 assert_eq!(
-                    *expr.kind(),
-                    ExprKind::ScriptComment(" PRINT \"test\"".to_owned())
+                    *expr.expresssion(),
+                    Expr::ScriptComment(" PRINT \"test\"".to_owned())
                 )
             }
 

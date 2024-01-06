@@ -4,78 +4,115 @@ use std::ops::Range;
 // types
 ////////////////////////////////////////////////////////////////
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExprKind {
+    String,
+    UInt,
+
+    ScriptComment,
+
+    HPMode,
+    Comment,
+    Wait,
+    OpenDialog,
+    WaitDialog,
+    Flush,
+    Protocol,
+    Print,
+    SetTimeFormat,
+    SetTime,
+    SetOption,
+    TCUClose,
+    TCUOpen,
+    TCUTest,
+    PrinterSet,
+    PrinterTest,
+    IssueTest,
+    TestResult,
+    USBOpen,
+    USBClose,
+    USBPrint,
+    USBSetTimeFormat,
+    USBSetTime,
+    USBSetOption,
+    USBPrinterSet,
+    USBPrinterTest,
+}
+
+////////////////////////////////////////////////////////////////
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum Expr {
     String(String),
     UInt(u32),
 
     ScriptComment(String),
 
     HPMode,
-    Comment(Box<Expr>),
-    Wait(Box<Expr>),
-    OpenDialog(Box<Expr>),
-    WaitDialog(Box<Expr>),
+    Comment(Box<ParsedExpr>),
+    Wait(Box<ParsedExpr>),
+    OpenDialog(Box<ParsedExpr>),
+    WaitDialog(Box<ParsedExpr>),
     Flush,
     Protocol,
-    Print(Vec<Expr>),
-    SetTimeFormat(Box<Expr>),
+    Print(Vec<ParsedExpr>),
+    SetTimeFormat(Box<ParsedExpr>),
 
     /// This requires getting the current time from the OS and sending it to the printer via the
     /// TCU. Need to consider that the time must be acquired just before the command is sent.
     SetTime,
     SetOption {
-        option: Box<Expr>,
-        setting: Box<Expr>,
+        option: Box<ParsedExpr>,
+        setting: Box<ParsedExpr>,
     },
-    TCUClose(Box<Expr>),
-    TCUOpen(Box<Expr>),
+    TCUClose(Box<ParsedExpr>),
+    TCUOpen(Box<ParsedExpr>),
     TCUTest {
-        channel: Box<Expr>,
-        min: Box<Expr>,
-        max: Box<Expr>,
-        retries: Box<Expr>,
-        message: Box<Expr>,
+        channel: Box<ParsedExpr>,
+        min: Box<ParsedExpr>,
+        max: Box<ParsedExpr>,
+        retries: Box<ParsedExpr>,
+        message: Box<ParsedExpr>,
     },
-    PrinterSet(Box<Expr>),
+    PrinterSet(Box<ParsedExpr>),
     PrinterTest {
-        channel: Box<Expr>,
-        min: Box<Expr>,
-        max: Box<Expr>,
-        retries: Box<Expr>,
-        message: Box<Expr>,
+        channel: Box<ParsedExpr>,
+        min: Box<ParsedExpr>,
+        max: Box<ParsedExpr>,
+        retries: Box<ParsedExpr>,
+        message: Box<ParsedExpr>,
     },
-    IssueTest(Box<Expr>), // Unused.
+    IssueTest(Box<ParsedExpr>), // Unused.
     TestResult {
         // Unused.
-        min: Box<Expr>,
-        max: Box<Expr>,
-        message: Box<Expr>,
+        min: Box<ParsedExpr>,
+        max: Box<ParsedExpr>,
+        message: Box<ParsedExpr>,
     },
     USBOpen,
     USBClose,
-    USBPrint(Vec<Expr>),
-    USBSetTimeFormat(Box<Expr>),
+    USBPrint(Vec<ParsedExpr>),
+    USBSetTimeFormat(Box<ParsedExpr>),
     USBSetTime,
     USBSetOption {
-        option: Box<Expr>,
-        setting: Box<Expr>,
+        option: Box<ParsedExpr>,
+        setting: Box<ParsedExpr>,
     },
-    USBPrinterSet(Box<Expr>),
+    USBPrinterSet(Box<ParsedExpr>),
     USBPrinterTest {
-        channel: Box<Expr>,
-        min: Box<Expr>,
-        max: Box<Expr>,
-        retries: Box<Expr>,
-        message: Box<Expr>,
+        channel: Box<ParsedExpr>,
+        min: Box<ParsedExpr>,
+        max: Box<ParsedExpr>,
+        retries: Box<ParsedExpr>,
+        message: Box<ParsedExpr>,
     },
 }
 
 ////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Debug)]
-pub struct Expr {
-    kind: ExprKind,
+pub struct ParsedExpr {
+    expr: Expr,
     span: Range<usize>,
 }
 
@@ -83,17 +120,17 @@ pub struct Expr {
 // construction / conversion
 ////////////////////////////////////////////////////////////////
 
-impl Expr {
-    pub fn from_kind_and_span(kind: ExprKind, span: Range<usize>) -> Self {
-        Self { kind, span }
+impl ParsedExpr {
+    pub fn from_kind_and_span(expr: Expr, span: Range<usize>) -> Self {
+        Self { expr, span }
     }
 
     /// Return a new Expr from the given ExprKind and with a default span. Primariliy intended for
     /// use in testing.
     ///
-    pub fn from_kind_default(kind: ExprKind) -> Self {
+    pub fn from_kind_default(expr: Expr) -> Self {
         Self {
-            kind,
+            expr,
             span: Range::default(),
         }
     }
@@ -102,7 +139,7 @@ impl Expr {
     ///
     pub fn from_str_default(string: &str) -> Self {
         Self {
-            kind: ExprKind::String(string.to_string()),
+            expr: Expr::String(string.to_string()),
             span: Range::default(),
         }
     }
@@ -111,8 +148,84 @@ impl Expr {
     ///
     pub fn from_uint_default(uint: u32) -> Self {
         Self {
-            kind: ExprKind::UInt(uint),
+            expr: Expr::UInt(uint),
             span: Range::default(),
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+impl From<Expr> for ExprKind {
+    fn from(expr: Expr) -> Self {
+        match expr {
+            Expr::String(_) => ExprKind::String,
+            Expr::UInt(_) => ExprKind::UInt,
+            Expr::ScriptComment(_) => ExprKind::ScriptComment,
+            Expr::HPMode => ExprKind::HPMode,
+            Expr::Comment(_) => ExprKind::Comment,
+            Expr::Wait(_) => ExprKind::Wait,
+            Expr::OpenDialog(_) => ExprKind::OpenDialog,
+            Expr::WaitDialog(_) => ExprKind::WaitDialog,
+            Expr::Flush => ExprKind::Flush,
+            Expr::Protocol => ExprKind::Protocol,
+            Expr::Print(_) => ExprKind::Print,
+            Expr::SetTimeFormat(_) => ExprKind::SetTimeFormat,
+            Expr::SetTime => ExprKind::SetTime,
+            Expr::SetOption { .. } => ExprKind::SetOption,
+            Expr::TCUClose(_) => ExprKind::TCUClose,
+            Expr::TCUOpen(_) => ExprKind::TCUOpen,
+            Expr::TCUTest { .. } => ExprKind::TCUTest,
+            Expr::PrinterSet(_) => ExprKind::PrinterSet,
+            Expr::PrinterTest { .. } => ExprKind::PrinterTest,
+            Expr::IssueTest(_) => ExprKind::IssueTest,
+            Expr::TestResult { .. } => ExprKind::TestResult,
+            Expr::USBOpen => ExprKind::USBOpen,
+            Expr::USBClose => ExprKind::USBClose,
+            Expr::USBPrint(_) => ExprKind::USBPrint,
+            Expr::USBSetTimeFormat(_) => ExprKind::USBSetTimeFormat,
+            Expr::USBSetTime => ExprKind::USBSetTime,
+            Expr::USBSetOption { .. } => ExprKind::USBSetOption,
+            Expr::USBPrinterSet(_) => ExprKind::USBPrinterSet,
+            Expr::USBPrinterTest { .. } => ExprKind::USBPrinterTest,
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+impl From<&Expr> for ExprKind {
+    fn from(expr: &Expr) -> Self {
+        match expr {
+            Expr::String(_) => ExprKind::String,
+            Expr::UInt(_) => ExprKind::UInt,
+            Expr::ScriptComment(_) => ExprKind::ScriptComment,
+            Expr::HPMode => ExprKind::HPMode,
+            Expr::Comment(_) => ExprKind::Comment,
+            Expr::Wait(_) => ExprKind::Wait,
+            Expr::OpenDialog(_) => ExprKind::OpenDialog,
+            Expr::WaitDialog(_) => ExprKind::WaitDialog,
+            Expr::Flush => ExprKind::Flush,
+            Expr::Protocol => ExprKind::Protocol,
+            Expr::Print(_) => ExprKind::Print,
+            Expr::SetTimeFormat(_) => ExprKind::SetTimeFormat,
+            Expr::SetTime => ExprKind::SetTime,
+            Expr::SetOption { .. } => ExprKind::SetOption,
+            Expr::TCUClose(_) => ExprKind::TCUClose,
+            Expr::TCUOpen(_) => ExprKind::TCUOpen,
+            Expr::TCUTest { .. } => ExprKind::TCUTest,
+            Expr::PrinterSet(_) => ExprKind::PrinterSet,
+            Expr::PrinterTest { .. } => ExprKind::PrinterTest,
+            Expr::IssueTest(_) => ExprKind::IssueTest,
+            Expr::TestResult { .. } => ExprKind::TestResult,
+            Expr::USBOpen => ExprKind::USBOpen,
+            Expr::USBClose => ExprKind::USBClose,
+            Expr::USBPrint(_) => ExprKind::USBPrint,
+            Expr::USBSetTimeFormat(_) => ExprKind::USBSetTimeFormat,
+            Expr::USBSetTime => ExprKind::USBSetTime,
+            Expr::USBSetOption { .. } => ExprKind::USBSetOption,
+            Expr::USBPrinterSet(_) => ExprKind::USBPrinterSet,
+            Expr::USBPrinterTest { .. } => ExprKind::USBPrinterTest,
         }
     }
 }
@@ -121,9 +234,9 @@ impl Expr {
 // field access
 ////////////////////////////////////////////////////////////////
 
-impl Expr {
-    pub fn kind(&self) -> &ExprKind {
-        &self.kind
+impl ParsedExpr {
+    pub fn expresssion(&self) -> &Expr {
+        &self.expr
     }
 
     pub fn span(&self) -> &Range<usize> {
@@ -135,49 +248,49 @@ impl Expr {
 // comparison
 ////////////////////////////////////////////////////////////////
 
-impl std::cmp::PartialEq for Expr {
+impl std::cmp::PartialEq for ParsedExpr {
     fn eq(&self, other: &Self) -> bool {
         // Only compare the expression kind. Makes testing much easier.
-        self.kind == other.kind
+        self.expr == other.expr
     }
 }
 
 ////////////////////////////////////////////////////////////////
 
 impl ExprKind {
-    pub fn kind_name(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
-            ExprKind::String(_) => "String",
-            ExprKind::UInt(_) => "Unsigned Integer",
+            ExprKind::String => "String",
+            ExprKind::UInt => "Unsigned Integer",
 
-            ExprKind::ScriptComment(_) => "Script Comment",
+            ExprKind::ScriptComment => "Script Comment",
 
             ExprKind::HPMode => "Command: 'HPMODE'",
-            ExprKind::Comment(_) => "Command: 'COMMENT'",
-            ExprKind::Wait(_) => "Command: 'WAIT'",
-            ExprKind::OpenDialog(_) => "Command: 'OPENDIALOG'",
-            ExprKind::WaitDialog(_) => "Command: 'WAITDIALOG'",
+            ExprKind::Comment => "Command: 'COMMENT'",
+            ExprKind::Wait => "Command: 'WAIT'",
+            ExprKind::OpenDialog => "Command: 'OPENDIALOG'",
+            ExprKind::WaitDialog => "Command: 'WAITDIALOG'",
             ExprKind::Flush => "Command: 'FLUSH'",
             ExprKind::Protocol => "Command: 'PROTOCOL'",
-            ExprKind::Print(_) => "Command: 'PRINT'",
-            ExprKind::SetTimeFormat(_) => "Command: 'SETTIMEFORMAT'",
+            ExprKind::Print => "Command: 'PRINT'",
+            ExprKind::SetTimeFormat => "Command: 'SETTIMEFORMAT'",
             ExprKind::SetTime => "Command: 'SETTIME'",
-            ExprKind::SetOption { .. } => "Command: 'SETOPTION'",
-            ExprKind::TCUClose(_) => "Command: 'TCUCLOSE'",
-            ExprKind::TCUOpen(_) => "Command: 'TCUOPEN'",
-            ExprKind::TCUTest { .. } => "Command: 'TCUTEST'",
-            ExprKind::PrinterSet(_) => "Command: 'PRINTERSET'",
-            ExprKind::PrinterTest { .. } => "Command: 'PRINTERTEST'",
-            ExprKind::IssueTest(_) => "Command: 'ISSUETEST'",
-            ExprKind::TestResult { .. } => "Command: 'TESTRESULT'",
+            ExprKind::SetOption => "Command: 'SETOPTION'",
+            ExprKind::TCUClose => "Command: 'TCUCLOSE'",
+            ExprKind::TCUOpen => "Command: 'TCUOPEN'",
+            ExprKind::TCUTest => "Command: 'TCUTEST'",
+            ExprKind::PrinterSet => "Command: 'PRINTERSET'",
+            ExprKind::PrinterTest => "Command: 'PRINTERTEST'",
+            ExprKind::IssueTest => "Command: 'ISSUETEST'",
+            ExprKind::TestResult => "Command: 'TESTRESULT'",
             ExprKind::USBOpen => "Command: 'USBOPEN'",
             ExprKind::USBClose => "Command: 'USBCLOSE'",
-            ExprKind::USBPrint(_) => "Command: 'USBPRINT'",
-            ExprKind::USBSetTimeFormat(_) => "Command: 'USBSETTIMEFORMAT'",
+            ExprKind::USBPrint => "Command: 'USBPRINT'",
+            ExprKind::USBSetTimeFormat => "Command: 'USBSETTIMEFORMAT'",
             ExprKind::USBSetTime => "Command: 'USBSETTIME'",
-            ExprKind::USBSetOption { .. } => "Command: 'USBSETOPTION'",
-            ExprKind::USBPrinterSet(_) => "Command: 'USBPRINTERSET'",
-            ExprKind::USBPrinterTest { .. } => "Command: 'USBPRINTERTEST'",
+            ExprKind::USBSetOption => "Command: 'USBSETOPTION'",
+            ExprKind::USBPrinterSet => "Command: 'USBPRINTERSET'",
+            ExprKind::USBPrinterTest => "Command: 'USBPRINTERTEST'",
         }
     }
 }

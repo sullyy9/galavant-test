@@ -6,7 +6,7 @@ use crate::execution::{Dialog, FrontendRequest, MeasurementTest, Transaction};
 
 use super::{
     error::Error,
-    expression::{Expr, ExprKind},
+    expression::{Expr, ParsedExpr},
     state::EvalState,
 };
 
@@ -21,27 +21,27 @@ fn tcu_format_byte(byte: u8) -> Vec<u8> {
 
 ////////////////////////////////////////////////////////////////
 
-pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, Error> {
-    match expr.kind() {
-        ExprKind::String(_) => panic!("Orphaned String"),
-        ExprKind::UInt(_) => panic!("Orphaned UInt"),
+pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequest, Error> {
+    match expr.expresssion() {
+        Expr::String(_) => panic!("Orphaned String"),
+        Expr::UInt(_) => panic!("Orphaned UInt"),
 
-        ExprKind::ScriptComment(_) => Ok(FrontendRequest::None),
+        Expr::ScriptComment(_) => Ok(FrontendRequest::None),
 
-        ExprKind::HPMode => {
+        Expr::HPMode => {
             state.hpmode = !state.hpmode;
             Ok(FrontendRequest::None)
         }
-        ExprKind::Comment(arg) => {
-            if let ExprKind::String(str) = arg.kind() {
+        Expr::Comment(arg) => {
+            if let Expr::String(str) = arg.expresssion() {
                 return Ok(FrontendRequest::GuiPrint(str.to_owned()));
             }
 
             panic!("Invalid COMMENT arg {:?}", arg);
         }
 
-        ExprKind::Wait(arg) => {
-            if let ExprKind::UInt(milliseconds) = arg.kind() {
+        Expr::Wait(arg) => {
+            if let Expr::UInt(milliseconds) = arg.expresssion() {
                 return Ok(FrontendRequest::Wait(Duration::from_millis(
                     (*milliseconds).into(),
                 )));
@@ -50,8 +50,8 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid WAIT arg {:?}", arg);
         }
 
-        ExprKind::OpenDialog(arg) => {
-            if let ExprKind::String(message) = arg.kind() {
+        Expr::OpenDialog(arg) => {
+            if let Expr::String(message) = arg.expresssion() {
                 let kind = Dialog::Notification;
                 let message = message.to_owned();
                 return Ok(FrontendRequest::GuiDialogue { kind, message });
@@ -60,8 +60,8 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid OPENDIALOG arg {:?}", arg);
         }
 
-        ExprKind::WaitDialog(arg) => {
-            if let ExprKind::String(message) = arg.kind() {
+        Expr::WaitDialog(arg) => {
+            if let Expr::String(message) = arg.expresssion() {
                 let kind = Dialog::ManualInput;
                 let message = message.to_owned();
                 return Ok(FrontendRequest::GuiDialogue { kind, message });
@@ -70,15 +70,15 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid WAITDIALOG arg {:?}", arg);
         }
 
-        ExprKind::Flush => Ok(FrontendRequest::TCUFlush),
-        ExprKind::Protocol => Ok(FrontendRequest::None),
+        Expr::Flush => Ok(FrontendRequest::TCUFlush),
+        Expr::Protocol => Ok(FrontendRequest::None),
 
-        ExprKind::Print(args) => {
+        Expr::Print(args) => {
             let mut arg_bytes = Vec::new();
             for arg in args {
-                if let ExprKind::String(str) = arg.kind() {
+                if let Expr::String(str) = arg.expresssion() {
                     arg_bytes.extend_from_slice(str.as_bytes());
-                } else if let ExprKind::UInt(uint) = arg.kind() {
+                } else if let Expr::UInt(uint) = arg.expresssion() {
                     debug_assert!(*uint <= 255);
                     arg_bytes.push(*uint as u8);
                 } else {
@@ -108,8 +108,8 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             )))
         }
 
-        ExprKind::SetTimeFormat(arg) => {
-            if let ExprKind::UInt(uint) = arg.kind() {
+        Expr::SetTimeFormat(arg) => {
+            if let Expr::UInt(uint) = arg.expresssion() {
                 let mut bytes = if state.hpmode {
                     Vec::from("P051B007466".as_bytes())
                 } else {
@@ -129,7 +129,7 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!()
         }
 
-        ExprKind::SetTime => {
+        Expr::SetTime => {
             let datetime = Local::now();
             let datetime = format!(
                 "{:02}:{:02}:{:02},{:02}/{:02}/{:02}",
@@ -159,9 +159,9 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             )))
         }
 
-        ExprKind::SetOption { option, setting } => {
-            if let (ExprKind::UInt(option), ExprKind::UInt(setting)) =
-                (option.kind(), setting.kind())
+        Expr::SetOption { option, setting } => {
+            if let (Expr::UInt(option), Expr::UInt(setting)) =
+                (option.expresssion(), setting.expresssion())
             {
                 debug_assert!(*option <= 255);
                 debug_assert!(*setting <= 255);
@@ -182,8 +182,8 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid SETOPTION args {option:?}, {setting:?}")
         }
 
-        ExprKind::TCUClose(arg) => {
-            if let ExprKind::UInt(relay) = arg.kind() {
+        Expr::TCUClose(arg) => {
+            if let Expr::UInt(relay) = arg.expresssion() {
                 debug_assert!(*relay <= 255);
                 return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
@@ -195,8 +195,8 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid TCUCLOSE arg {arg:?}")
         }
 
-        ExprKind::TCUOpen(arg) => {
-            if let ExprKind::UInt(relay) = arg.kind() {
+        Expr::TCUOpen(arg) => {
+            if let Expr::UInt(relay) = arg.expresssion() {
                 debug_assert!(*relay <= 255);
                 return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
@@ -208,7 +208,7 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid TCUOPEN arg {arg:?}")
         }
 
-        ExprKind::TCUTest {
+        Expr::TCUTest {
             channel,
             min,
             max,
@@ -216,18 +216,18 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             message,
         } => {
             let args = (
-                channel.kind(),
-                min.kind(),
-                max.kind(),
-                retries.kind(),
-                message.kind(),
+                channel.expresssion(),
+                min.expresssion(),
+                max.expresssion(),
+                retries.expresssion(),
+                message.expresssion(),
             );
             if let (
-                ExprKind::UInt(channel),
-                ExprKind::UInt(min),
-                ExprKind::UInt(max),
-                ExprKind::UInt(retries),
-                ExprKind::String(message),
+                Expr::UInt(channel),
+                Expr::UInt(min),
+                Expr::UInt(max),
+                Expr::UInt(retries),
+                Expr::String(message),
             ) = args
             {
                 debug_assert!(*channel <= 255);
@@ -246,8 +246,8 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid TCUTEST args {channel:?}, {min:?}, {max:?}, {retries:?}, {message:?}")
         }
 
-        ExprKind::PrinterSet(arg) => {
-            if let ExprKind::UInt(channel) = arg.kind() {
+        Expr::PrinterSet(arg) => {
+            if let Expr::UInt(channel) = arg.expresssion() {
                 debug_assert!(*channel <= 255);
 
                 let bytes = if state.hpmode {
@@ -266,7 +266,7 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid PRINTERSET arg {arg:?}")
         }
 
-        ExprKind::PrinterTest {
+        Expr::PrinterTest {
             channel,
             min,
             max,
@@ -274,19 +274,19 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             message,
         } => {
             let args = (
-                channel.kind(),
-                min.kind(),
-                max.kind(),
-                retries.kind(),
-                message.kind(),
+                channel.expresssion(),
+                min.expresssion(),
+                max.expresssion(),
+                retries.expresssion(),
+                message.expresssion(),
             );
 
             if let (
-                ExprKind::UInt(channel),
-                ExprKind::UInt(min),
-                ExprKind::UInt(max),
-                ExprKind::UInt(retries),
-                ExprKind::String(message),
+                Expr::UInt(channel),
+                Expr::UInt(min),
+                Expr::UInt(max),
+                Expr::UInt(retries),
+                Expr::String(message),
             ) = args
             {
                 debug_assert!(*channel <= 255);
@@ -313,18 +313,18 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             )
         }
 
-        ExprKind::IssueTest(_) => Ok(FrontendRequest::None),
-        ExprKind::TestResult { .. } => Ok(FrontendRequest::None),
+        Expr::IssueTest(_) => Ok(FrontendRequest::None),
+        Expr::TestResult { .. } => Ok(FrontendRequest::None),
 
-        ExprKind::USBOpen => Ok(FrontendRequest::PrinterOpen),
-        ExprKind::USBClose => Ok(FrontendRequest::PrinterClose),
+        Expr::USBOpen => Ok(FrontendRequest::PrinterOpen),
+        Expr::USBClose => Ok(FrontendRequest::PrinterClose),
 
-        ExprKind::USBPrint(args) => {
+        Expr::USBPrint(args) => {
             let mut bytes = Vec::new();
             for arg in args {
-                if let ExprKind::String(str) = arg.kind() {
+                if let Expr::String(str) = arg.expresssion() {
                     bytes.extend_from_slice(str.as_bytes());
-                } else if let ExprKind::UInt(uint) = arg.kind() {
+                } else if let Expr::UInt(uint) = arg.expresssion() {
                     debug_assert!(*uint <= 255);
                     bytes.push(*uint as u8);
                 } else {
@@ -339,8 +339,8 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             )))
         }
 
-        ExprKind::USBSetTimeFormat(arg) => {
-            if let ExprKind::UInt(uint) = arg.kind() {
+        Expr::USBSetTimeFormat(arg) => {
+            if let Expr::UInt(uint) = arg.expresssion() {
                 let bytes = if state.hpmode {
                     vec![0x1B, 0x00, b't', b'f', *uint as u8]
                 } else {
@@ -357,7 +357,7 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!()
         }
 
-        ExprKind::USBSetTime => {
+        Expr::USBSetTime => {
             let datetime = Local::now();
             let datetime = format!(
                 "{:02}:{:02}:{:02},{:02}/{:02}/{:02}",
@@ -384,9 +384,9 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             )))
         }
 
-        ExprKind::USBSetOption { option, setting } => {
-            if let (ExprKind::UInt(option), ExprKind::UInt(setting)) =
-                (option.kind(), setting.kind())
+        Expr::USBSetOption { option, setting } => {
+            if let (Expr::UInt(option), Expr::UInt(setting)) =
+                (option.expresssion(), setting.expresssion())
             {
                 debug_assert!(*option <= 255);
                 debug_assert!(*setting <= 255);
@@ -407,8 +407,8 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid USBSETOPTION args {option:?}, {setting:?}")
         }
 
-        ExprKind::USBPrinterSet(arg) => {
-            if let ExprKind::UInt(channel) = arg.kind() {
+        Expr::USBPrinterSet(arg) => {
+            if let Expr::UInt(channel) = arg.expresssion() {
                 debug_assert!(*channel <= 255);
 
                 let bytes = if state.hpmode {
@@ -427,7 +427,7 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             panic!("Invalid USBPRINTERSET arg {arg:?}")
         }
 
-        ExprKind::USBPrinterTest {
+        Expr::USBPrinterTest {
             channel,
             min,
             max,
@@ -435,19 +435,19 @@ pub fn evaluate(expr: &Expr, state: &mut EvalState) -> Result<FrontendRequest, E
             message,
         } => {
             let args = (
-                channel.kind(),
-                min.kind(),
-                max.kind(),
-                retries.kind(),
-                message.kind(),
+                channel.expresssion(),
+                min.expresssion(),
+                max.expresssion(),
+                retries.expresssion(),
+                message.expresssion(),
             );
 
             if let (
-                ExprKind::UInt(channel),
-                ExprKind::UInt(min),
-                ExprKind::UInt(max),
-                ExprKind::UInt(retries),
-                ExprKind::String(message),
+                Expr::UInt(channel),
+                Expr::UInt(min),
+                Expr::UInt(max),
+                Expr::UInt(retries),
+                Expr::String(message),
             ) = args
             {
                 debug_assert!(*channel <= 255);

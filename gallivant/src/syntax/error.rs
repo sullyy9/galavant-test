@@ -71,13 +71,13 @@ impl Error {
     /// Having a serperate Token enum which just contains valueless variants for this purpose. Could
     /// also provide methods for access the token's string and parser.
     ///
-    pub fn argument_type<'a, Iter: IntoIterator<Item = &'a ExprKind>>(
+    pub fn argument_type<Iter: IntoIterator<Item = ExprKind>>(
         span: Span,
         expected: Iter,
-        found: &ExprKind,
+        found: ExprKind,
     ) -> Self {
-        let expected = expected.into_iter().map(|expr| expr.kind_name()).collect();
-        let found = found.kind_name();
+        let expected = expected.into_iter().map(|expr| expr.name()).collect();
+        let found = found.name();
 
         Self {
             reason: Reason::ArgType {

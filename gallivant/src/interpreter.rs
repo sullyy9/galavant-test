@@ -1,6 +1,6 @@
 use super::{
     execution::FrontendRequest,
-    syntax::{evaluate, parse_from_str, Error, EvalState, Expr},
+    syntax::{evaluate, parse_from_str, Error, EvalState, ParsedExpr},
 };
 
 ////////////////////////////////////////////////////////////////
@@ -11,7 +11,7 @@ use super::{
 ///
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct Interpreter {
-    ast: Vec<Expr>,
+    ast: Vec<ParsedExpr>,
     index: usize,
     state: EvalState,
 }

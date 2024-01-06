@@ -1,6 +1,6 @@
 use std::io::{self, Read, Write};
 
-use crate::syntax::{Error, Expr};
+use crate::syntax::{Error, ParsedExpr};
 
 use super::measurement::{self, Measurement, MeasurementTest};
 
@@ -12,7 +12,7 @@ use super::measurement::{self, Measurement, MeasurementTest};
 ///
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transaction {
-    expression: Expr,
+    expression: ParsedExpr,
     txbytes: Vec<u8>,
     txcomplete: bool,
     device: Device,
@@ -61,7 +61,11 @@ pub enum Device {
 ////////////////////////////////////////////////////////////////
 
 impl Transaction {
-    pub fn with_tcu(expression: Expr, txbytes: Vec<u8>, test: Option<MeasurementTest>) -> Self {
+    pub fn with_tcu(
+        expression: ParsedExpr,
+        txbytes: Vec<u8>,
+        test: Option<MeasurementTest>,
+    ) -> Self {
         Self {
             expression,
             txbytes,
@@ -72,7 +76,11 @@ impl Transaction {
         }
     }
 
-    pub fn with_printer(expression: Expr, txbytes: Vec<u8>, test: Option<MeasurementTest>) -> Self {
+    pub fn with_printer(
+        expression: ParsedExpr,
+        txbytes: Vec<u8>,
+        test: Option<MeasurementTest>,
+    ) -> Self {
         Self {
             expression,
             txbytes,
