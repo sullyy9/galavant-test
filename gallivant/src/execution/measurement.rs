@@ -166,3 +166,70 @@ impl std::error::Error for Error {
 }
 
 ////////////////////////////////////////////////////////////////
+/// tests
+////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    ////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn test_measurement_from_bytes() {
+        let measurement =
+            Measurement::try_from(&b"1234\r"[..]).expect("Failed to parse measurement");
+        assert_eq!(measurement.0, 0x1234);
+    }
+
+    ////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn test_success() {
+        let test = MeasurementTest {
+            expected: 0..=20,
+            retries: 0,
+            failure_message: "test failed".to_owned(),
+        };
+
+        let measurement = Measurement::try_from(&b"000A\r"[..]).unwrap();
+        assert!(matches!(test.test(measurement), Ok(())))
+    }
+
+    ////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn test_failure_retry() {
+        let test = MeasurementTest {
+            expected: 0..=20,
+            retries: 1,
+            failure_message: "test failed".to_owned(),
+        };
+
+        let measurement = Measurement::try_from(&b"00F0\r"[..]).unwrap();
+        let result = test.test(measurement);
+
+        if let Err(Error::TestFailedRetryable(test)) = result {
+            let measurement = Measurement::try_from(&b"0010\r"[..]).unwrap();
+            assert!(matches!(test.test(measurement), Ok(())))
+        } else {
+            panic!("Expected test to fail but be retryable. Got: {result:?}");
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn test_failure_no_retry() {
+        let test = MeasurementTest {
+            expected: 0..=20,
+            retries: 0,
+            failure_message: "test failed".to_owned(),
+        };
+
+        let measurement = Measurement::try_from(&b"00F0\r"[..]).unwrap();
+        assert!(matches!(test.test(measurement), Err(Error::TestFailed(_))));
+    }
+}
+
+////////////////////////////////////////////////////////////////
