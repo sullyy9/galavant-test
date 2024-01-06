@@ -5,7 +5,7 @@ use chumsky::{
 };
 
 use super::{
-    error::{Error, Reason},
+    error::{Error, ErrorReason},
     expression::{Expr, ExprKind, ParsedExpr},
 };
 
@@ -352,7 +352,7 @@ fn parser() -> impl Parser<char, Vec<ParsedExpr>, Error = Error> {
         .padded()
         .then_ignore(end())
         .map_err(|error| {
-            if let Reason::Unexpected { span, .. } = error.reason() {
+            if let ErrorReason::Unexpected { span, .. } = error.reason() {
                 return Error::unrecognised_command(span.clone());
             }
 
@@ -369,8 +369,6 @@ mod tests {
     use std::io::Write;
 
     use ariadne::Source;
-
-    use crate::syntax::error::Reason;
 
     use super::*;
 
@@ -606,7 +604,7 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
 
                 #[allow(unreachable_code)]
                 if let Some(error) = errors.first() {
-                    assert!(matches!(error.reason(), Reason::ArgType { .. }));
+                    assert!(matches!(error.reason(), ErrorReason::ArgType { .. }));
                     return;
 
                     let report = {
@@ -643,7 +641,7 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
 
                 #[allow(unreachable_code)]
                 if let Some(error) = errors.first() {
-                    assert!(matches!(error.reason(), Reason::ArgType { .. }));
+                    assert!(matches!(error.reason(), ErrorReason::ArgType { .. }));
                     return;
 
                     let report = {
@@ -680,7 +678,7 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
 
                 #[allow(unreachable_code)]
                 if let Some(error) = errors.first() {
-                    assert!(matches!(error.reason(), Reason::ArgValue { .. }));
+                    assert!(matches!(error.reason(), ErrorReason::ArgValue { .. }));
                     return;
 
                     let report = {

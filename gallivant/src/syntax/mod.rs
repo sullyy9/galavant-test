@@ -8,7 +8,7 @@ mod state;
 // exports
 ////////////////////////////////////////////////////////////////
 
-pub use error::Error;
+pub use error::{Error, ErrorReason};
 pub use evaluate::evaluate;
 pub use expression::ParsedExpr;
 pub use parse::parse_from_str;

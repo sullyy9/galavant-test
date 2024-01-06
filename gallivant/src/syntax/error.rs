@@ -9,7 +9,7 @@ type Span = std::ops::Range<usize>;
 ////////////////////////////////////////////////////////////////
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub enum Reason {
+pub enum ErrorReason {
     Unexpected {
         span: Span,
         expected: Vec<Option<char>>,
@@ -41,7 +41,7 @@ pub enum Reason {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Error {
-    reason: Reason,
+    reason: ErrorReason,
     notes: Vec<&'static str>,
     help: Vec<&'static str>,
 }
@@ -53,7 +53,7 @@ pub struct Error {
 impl Error {
     pub fn unrecognised_command(span: Span) -> Self {
         Self {
-            reason: Reason::UnrecognisedCommand { span },
+            reason: ErrorReason::UnrecognisedCommand { span },
             notes: Vec::new(),
             help: Vec::new(),
         }
@@ -80,7 +80,7 @@ impl Error {
         let found = found.name();
 
         Self {
-            reason: Reason::ArgType {
+            reason: ErrorReason::ArgType {
                 span,
                 expected,
                 found,
@@ -101,7 +101,7 @@ impl Error {
         debug_assert!(limits.0 <= limits.1);
 
         Self {
-            reason: Reason::ArgValue {
+            reason: ErrorReason::ArgValue {
                 span,
                 value,
                 limits,
@@ -117,7 +117,7 @@ impl Error {
 ////////////////////////////////////////////////////////////////
 
 impl Error {
-    pub fn reason(&self) -> &Reason {
+    pub fn reason(&self) -> &ErrorReason {
         &self.reason
     }
 
@@ -152,20 +152,20 @@ impl std::fmt::Display for Error {
 
 ////////////////////////////////////////////////////////////////
 
-impl Reason {
+impl ErrorReason {
     fn as_message(&self) -> &'static str {
         match self {
-            Reason::Unexpected { .. } => "Unexpected token",
-            Reason::Unclosed => todo!(),
-            Reason::UnrecognisedCommand { .. } => "Unrecognised command found",
-            Reason::ArgType { .. } => "Invalid argument type",
-            Reason::ArgValue { .. } => "Argument value exceeds limits",
+            ErrorReason::Unexpected { .. } => "Unexpected token",
+            ErrorReason::Unclosed => todo!(),
+            ErrorReason::UnrecognisedCommand { .. } => "Unrecognised command found",
+            ErrorReason::ArgType { .. } => "Invalid argument type",
+            ErrorReason::ArgValue { .. } => "Argument value exceeds limits",
         }
     }
 
     fn labels(&self) -> Vec<Label> {
         match self {
-            Reason::Unexpected {
+            ErrorReason::Unexpected {
                 span,
                 expected,
                 found,
@@ -199,15 +199,15 @@ impl Reason {
                         .with_priority(9),
                 ]
             }
-            Reason::Unclosed => todo!(),
+            ErrorReason::Unclosed => todo!(),
 
-            Reason::UnrecognisedCommand { span } => {
+            ErrorReason::UnrecognisedCommand { span } => {
                 vec![Label::new(span.clone())
                     .with_message("Unrecognised command")
                     .with_priority(10)]
             }
 
-            Reason::ArgType {
+            ErrorReason::ArgType {
                 span,
                 expected,
                 found,
@@ -236,7 +236,7 @@ impl Reason {
                 ]
             }
 
-            Reason::ArgValue {
+            ErrorReason::ArgValue {
                 span,
                 value,
                 limits,
@@ -291,7 +291,7 @@ impl chumsky::error::Error<char> for Error {
         found: Option<char>,
     ) -> Self {
         Self {
-            reason: Reason::Unexpected {
+            reason: ErrorReason::Unexpected {
                 span,
                 expected: expected.into_iter().collect(),
                 found,
