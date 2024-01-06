@@ -203,7 +203,7 @@ impl Transaction {
                     self.txcomplete = false;
                     return Ok(TransactionStatus::Ongoing(self));
                 }
-                Err(measurement::Error::TestFailed) => todo!(),
+                Err(measurement::Error::TestFailed(test)) => todo!(),
                 _ => todo!(),
             }
         }

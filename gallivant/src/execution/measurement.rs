@@ -22,9 +22,20 @@ pub struct MeasurementTest {
 
 ////////////////////////////////////////////////////////////////
 
+/// A test to be performed on a measurement taken by a device.
+///
+#[derive(Clone, Debug, PartialEq)]
+pub struct FailedTest {
+    pub measurement: u32,
+    pub expected: RangeInclusive<u32>,
+    pub message: String,
+}
+
+////////////////////////////////////////////////////////////////
+
 #[derive(Debug)]
 pub enum Error {
-    TestFailed,
+    TestFailed(FailedTest),
     TestFailedRetryable(MeasurementTest),
 
     /// Parsing of a measurement failed.
@@ -67,6 +78,19 @@ impl TryFrom<&[u8]> for Measurement {
 }
 
 ////////////////////////////////////////////////////////////////
+
+impl FailedTest {
+    fn from_test_and_measurement(test: MeasurementTest, measurement: Measurement) -> Self {
+        let Measurement(measurement) = measurement;
+        Self {
+            measurement,
+            expected: test.expected,
+            message: test.failure_message,
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
 // methods
 ////////////////////////////////////////////////////////////////
 
@@ -88,7 +112,10 @@ impl MeasurementTest {
                 self.retries -= 1;
                 Err(Error::TestFailedRetryable(self))
             } else {
-                Err(Error::TestFailed)
+                Err(Error::TestFailed(FailedTest::from_test_and_measurement(
+                    self,
+                    Measurement(measurement),
+                )))
             };
         }
 
@@ -100,10 +127,24 @@ impl MeasurementTest {
 // ...
 ////////////////////////////////////////////////////////////////
 
+impl std::fmt::Display for Measurement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::TestFailed => write!(f, "Test failed"),
+            Error::TestFailed(test) => write!(
+                f,
+                "Test failed, expected between {} and {} but measured {}",
+                test.expected.start(),
+                test.expected.end(),
+                test.measurement
+            ),
             Error::TestFailedRetryable(test) => {
                 write!(f, "Test failed, retries remaining: {}", test.retries)
             }
@@ -117,7 +158,7 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::TestFailed => None,
+            Error::TestFailed(_) => None,
             Error::TestFailedRetryable(_) => None,
             Error::ParseError(error) => Some(error.as_ref()),
         }
