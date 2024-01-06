@@ -205,9 +205,9 @@ fn parser() -> impl Parser<char, Vec<ParsedExpr>, Error = Error> {
     let multi_expr = expr.separated_by(just(',').padded_by(whitespace()));
 
     let string_arg = expr.validate(|arg, span, emit| {
-        if !matches!(arg.expresssion(), Expr::String(_)) {
+        if !matches!(arg.expression(), Expr::String(_)) {
             let expected = [ExprKind::String];
-            let found = ExprKind::from(arg.expresssion());
+            let found = ExprKind::from(arg.expression());
 
             emit(
                 Error::argument_type(span, expected, found).with_note(ErrorNote::Note(
@@ -220,13 +220,13 @@ fn parser() -> impl Parser<char, Vec<ParsedExpr>, Error = Error> {
     });
 
     let uint_arg = expr.validate(|arg, span, emit| {
-        if !matches!(arg.expresssion(), Expr::UInt(_)) {
+        if !matches!(arg.expression(), Expr::UInt(_)) {
             let expected = [ExprKind::UInt];
-            let found = ExprKind::from(arg.expresssion());
+            let found = ExprKind::from(arg.expression());
 
             let mut error = Error::argument_type(span, expected, found);
 
-            if let Expr::String(string) = arg.expresssion() {
+            if let Expr::String(string) = arg.expression() {
                 if string.chars().all(|c| c.is_numeric()) {
                     error = error.with_note(ErrorNote::Help("If the argument was intended to be an unsigned integer, try removing the enclosing \"\""));
                 } else if string.starts_with('$') && string.chars().skip(1).all(|c| c.is_ascii_hexdigit()) {
@@ -240,7 +240,7 @@ fn parser() -> impl Parser<char, Vec<ParsedExpr>, Error = Error> {
     });
 
     let byte_arg = uint_arg.validate(|arg, span, emit| {
-        if let Expr::UInt(value) = arg.expresssion() {
+        if let Expr::UInt(value) = arg.expression() {
             if *value > 255 {
                 emit(Error::argument_value_size(span, *value, (0, 255)))
             }
@@ -714,7 +714,7 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
                 assert_eq!(ast.len(), 1);
                 let expr = ast.first().unwrap();
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::ScriptComment("Test comment".to_owned())
                 )
             }
@@ -739,25 +739,25 @@ PRINT "test" ; Comment
                 assert_eq!(ast.len(), 4);
                 let expr = &ast[0];
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::ScriptComment("Comment".to_owned())
                 );
 
                 let expr = &ast[1];
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::Print(vec![ParsedExpr::from_str_default("test")])
                 );
 
                 let expr = &ast[2];
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::ScriptComment(" Comment".to_owned())
                 );
 
                 let expr = &ast[3];
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::ScriptComment("Comment".to_owned())
                 );
             }
@@ -782,19 +782,19 @@ PRINT "test" ; Comment
                 assert_eq!(ast.len(), 3);
                 let expr = &ast[0];
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::ScriptComment(";;;;;Comment".to_owned())
                 );
 
                 let expr = &ast[1];
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::ScriptComment(" Comment ;;;; Comment ;;;".to_owned())
                 );
 
                 let expr = &ast[2];
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::ScriptComment(";;;Comment;;;".to_owned())
                 );
             }
@@ -815,7 +815,7 @@ PRINT "test" ; Comment
                 assert_eq!(ast.len(), 1);
                 let expr = ast.first().unwrap();
                 assert_eq!(
-                    *expr.expresssion(),
+                    *expr.expression(),
                     Expr::ScriptComment(" PRINT \"test\"".to_owned())
                 )
             }

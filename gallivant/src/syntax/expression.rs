@@ -235,7 +235,7 @@ impl From<&Expr> for ExprKind {
 ////////////////////////////////////////////////////////////////
 
 impl ParsedExpr {
-    pub fn expresssion(&self) -> &Expr {
+    pub fn expression(&self) -> &Expr {
         &self.expr
     }
 

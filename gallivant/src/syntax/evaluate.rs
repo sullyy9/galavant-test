@@ -22,7 +22,7 @@ fn tcu_format_byte(byte: u8) -> Vec<u8> {
 ////////////////////////////////////////////////////////////////
 
 pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequest, Error> {
-    match expr.expresssion() {
+    match expr.expression() {
         Expr::String(_) => panic!("Orphaned String"),
         Expr::UInt(_) => panic!("Orphaned UInt"),
 
@@ -33,7 +33,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
             Ok(FrontendRequest::None)
         }
         Expr::Comment(arg) => {
-            if let Expr::String(str) = arg.expresssion() {
+            if let Expr::String(str) = arg.expression() {
                 return Ok(FrontendRequest::GuiPrint(str.to_owned()));
             }
 
@@ -41,7 +41,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::Wait(arg) => {
-            if let Expr::UInt(milliseconds) = arg.expresssion() {
+            if let Expr::UInt(milliseconds) = arg.expression() {
                 return Ok(FrontendRequest::Wait(Duration::from_millis(
                     (*milliseconds).into(),
                 )));
@@ -51,7 +51,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::OpenDialog(arg) => {
-            if let Expr::String(message) = arg.expresssion() {
+            if let Expr::String(message) = arg.expression() {
                 let kind = Dialog::Notification;
                 let message = message.to_owned();
                 return Ok(FrontendRequest::GuiDialogue { kind, message });
@@ -61,7 +61,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::WaitDialog(arg) => {
-            if let Expr::String(message) = arg.expresssion() {
+            if let Expr::String(message) = arg.expression() {
                 let kind = Dialog::ManualInput;
                 let message = message.to_owned();
                 return Ok(FrontendRequest::GuiDialogue { kind, message });
@@ -76,9 +76,9 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         Expr::Print(args) => {
             let mut arg_bytes = Vec::new();
             for arg in args {
-                if let Expr::String(str) = arg.expresssion() {
+                if let Expr::String(str) = arg.expression() {
                     arg_bytes.extend_from_slice(str.as_bytes());
-                } else if let Expr::UInt(uint) = arg.expresssion() {
+                } else if let Expr::UInt(uint) = arg.expression() {
                     debug_assert!(*uint <= 255);
                     arg_bytes.push(*uint as u8);
                 } else {
@@ -109,7 +109,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::SetTimeFormat(arg) => {
-            if let Expr::UInt(uint) = arg.expresssion() {
+            if let Expr::UInt(uint) = arg.expression() {
                 let mut bytes = if state.hpmode {
                     Vec::from("P051B007466".as_bytes())
                 } else {
@@ -161,7 +161,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
 
         Expr::SetOption { option, setting } => {
             if let (Expr::UInt(option), Expr::UInt(setting)) =
-                (option.expresssion(), setting.expresssion())
+                (option.expression(), setting.expression())
             {
                 debug_assert!(*option <= 255);
                 debug_assert!(*setting <= 255);
@@ -183,7 +183,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::TCUClose(arg) => {
-            if let Expr::UInt(relay) = arg.expresssion() {
+            if let Expr::UInt(relay) = arg.expression() {
                 debug_assert!(*relay <= 255);
                 return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
@@ -196,7 +196,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::TCUOpen(arg) => {
-            if let Expr::UInt(relay) = arg.expresssion() {
+            if let Expr::UInt(relay) = arg.expression() {
                 debug_assert!(*relay <= 255);
                 return Ok(FrontendRequest::TCUTransact(Transaction::with_tcu(
                     expr.to_owned(),
@@ -216,11 +216,11 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
             message,
         } => {
             let args = (
-                channel.expresssion(),
-                min.expresssion(),
-                max.expresssion(),
-                retries.expresssion(),
-                message.expresssion(),
+                channel.expression(),
+                min.expression(),
+                max.expression(),
+                retries.expression(),
+                message.expression(),
             );
             if let (
                 Expr::UInt(channel),
@@ -247,7 +247,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::PrinterSet(arg) => {
-            if let Expr::UInt(channel) = arg.expresssion() {
+            if let Expr::UInt(channel) = arg.expression() {
                 debug_assert!(*channel <= 255);
 
                 let bytes = if state.hpmode {
@@ -274,11 +274,11 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
             message,
         } => {
             let args = (
-                channel.expresssion(),
-                min.expresssion(),
-                max.expresssion(),
-                retries.expresssion(),
-                message.expresssion(),
+                channel.expression(),
+                min.expression(),
+                max.expression(),
+                retries.expression(),
+                message.expression(),
             );
 
             if let (
@@ -322,9 +322,9 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         Expr::USBPrint(args) => {
             let mut bytes = Vec::new();
             for arg in args {
-                if let Expr::String(str) = arg.expresssion() {
+                if let Expr::String(str) = arg.expression() {
                     bytes.extend_from_slice(str.as_bytes());
-                } else if let Expr::UInt(uint) = arg.expresssion() {
+                } else if let Expr::UInt(uint) = arg.expression() {
                     debug_assert!(*uint <= 255);
                     bytes.push(*uint as u8);
                 } else {
@@ -340,7 +340,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::USBSetTimeFormat(arg) => {
-            if let Expr::UInt(uint) = arg.expresssion() {
+            if let Expr::UInt(uint) = arg.expression() {
                 let bytes = if state.hpmode {
                     vec![0x1B, 0x00, b't', b'f', *uint as u8]
                 } else {
@@ -386,7 +386,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
 
         Expr::USBSetOption { option, setting } => {
             if let (Expr::UInt(option), Expr::UInt(setting)) =
-                (option.expresssion(), setting.expresssion())
+                (option.expression(), setting.expression())
             {
                 debug_assert!(*option <= 255);
                 debug_assert!(*setting <= 255);
@@ -408,7 +408,7 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
         }
 
         Expr::USBPrinterSet(arg) => {
-            if let Expr::UInt(channel) = arg.expresssion() {
+            if let Expr::UInt(channel) = arg.expression() {
                 debug_assert!(*channel <= 255);
 
                 let bytes = if state.hpmode {
@@ -435,11 +435,11 @@ pub fn evaluate(expr: &ParsedExpr, state: &mut EvalState) -> Result<FrontendRequ
             message,
         } => {
             let args = (
-                channel.expresssion(),
-                min.expresssion(),
-                max.expresssion(),
-                retries.expresssion(),
-                message.expresssion(),
+                channel.expression(),
+                min.expression(),
+                max.expression(),
+                retries.expression(),
+                message.expression(),
             );
 
             if let (
