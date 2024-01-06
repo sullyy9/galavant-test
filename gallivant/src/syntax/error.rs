@@ -39,11 +39,18 @@ pub enum ErrorReason {
 
 ////////////////////////////////////////////////////////////////
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ErrorNote {
+    Note(&'static str),
+    Help(&'static str),
+}
+
+////////////////////////////////////////////////////////////////
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Error {
     reason: ErrorReason,
-    notes: Vec<&'static str>,
-    help: Vec<&'static str>,
+    notes: Vec<ErrorNote>,
 }
 
 ////////////////////////////////////////////////////////////////
@@ -55,7 +62,6 @@ impl Error {
         Self {
             reason: ErrorReason::UnrecognisedCommand { span },
             notes: Vec::new(),
-            help: Vec::new(),
         }
     }
 
@@ -86,7 +92,6 @@ impl Error {
                 found,
             },
             notes: Vec::new(),
-            help: Vec::new(),
         }
     }
 
@@ -107,7 +112,6 @@ impl Error {
                 limits,
             },
             notes: Vec::new(),
-            help: Vec::new(),
         }
     }
 }
@@ -121,21 +125,12 @@ impl Error {
         &self.reason
     }
 
-    pub fn notes(&self) -> &[&'static str] {
+    pub fn notes(&self) -> &[ErrorNote] {
         &self.notes
     }
 
-    pub fn help(&self) -> &[&'static str] {
-        &self.help
-    }
-
-    pub fn with_note(mut self, note: &'static str) -> Self {
+    pub fn with_note(mut self, note: ErrorNote) -> Self {
         self.notes.push(note);
-        self
-    }
-
-    pub fn with_help(mut self, help: &'static str) -> Self {
-        self.help.push(help);
         self
     }
 }
@@ -264,11 +259,10 @@ impl Error {
             .with_labels(self.reason.labels());
 
         for note in self.notes.iter() {
-            report = report.with_note(note);
-        }
-
-        for help in self.help.iter() {
-            report = report.with_help(help);
+            report = match note {
+                ErrorNote::Note(msg) => report.with_note(msg),
+                ErrorNote::Help(msg) => report.with_help(msg),
+            };
         }
 
         report.finish()
@@ -297,12 +291,11 @@ impl chumsky::error::Error<char> for Error {
                 found,
             },
             notes: Vec::new(),
-            help: Vec::new(),
         }
     }
 
     fn with_label(mut self, label: Self::Label) -> Self {
-        self.notes.push(label);
+        self.notes.push(ErrorNote::Note(label));
         self
     }
 

@@ -5,7 +5,7 @@ use chumsky::{
 };
 
 use super::{
-    error::{Error, ErrorReason},
+    error::{Error, ErrorNote, ErrorReason},
     expression::{Expr, ExprKind, ParsedExpr},
 };
 
@@ -209,9 +209,11 @@ fn parser() -> impl Parser<char, Vec<ParsedExpr>, Error = Error> {
             let expected = [ExprKind::String];
             let found = ExprKind::from(arg.expresssion());
 
-            emit(Error::argument_type(span, expected, found).with_help(
-                "If the argument was intended to be a string it should be delimited by \"\"",
-            ))
+            emit(
+                Error::argument_type(span, expected, found).with_note(ErrorNote::Note(
+                    "If the argument was intended to be a string it should be delimited by \"\"",
+                )),
+            )
         }
 
         arg
@@ -226,9 +228,9 @@ fn parser() -> impl Parser<char, Vec<ParsedExpr>, Error = Error> {
 
             if let Expr::String(string) = arg.expresssion() {
                 if string.chars().all(|c| c.is_numeric()) {
-                    error = error.with_help("If the argument was intended to be an unsigned integer, try removing the enclosing \"\"");
+                    error = error.with_note(ErrorNote::Help("If the argument was intended to be an unsigned integer, try removing the enclosing \"\""));
                 } else if string.starts_with('$') && string.chars().skip(1).all(|c| c.is_ascii_hexdigit()) {
-                    error = error.with_help("If the argument was intended to be a hex unsigned integer, try removing the enclosing \"\"");
+                    error = error.with_note(ErrorNote::Help("If the argument was intended to be a hex unsigned integer, try removing the enclosing \"\""));
                 }
             }
             emit(error)
