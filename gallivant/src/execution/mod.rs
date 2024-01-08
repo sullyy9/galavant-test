@@ -7,7 +7,7 @@ mod transaction;
 ////////////////////////////////////////////////////////////////
 
 pub use frontend::{Dialog, FrontendRequest};
-pub use measurement::MeasurementTest;
+pub use measurement::{FailedTest, Measurement, MeasurementTest};
 pub use transaction::{Device, Transaction, TransactionStatus};
 
 ////////////////////////////////////////////////////////////////

@@ -1,6 +1,6 @@
 use std::io::{self, Read, Write};
 
-use crate::syntax::{Error, ParsedExpr};
+use crate::{error::Error, syntax::ParsedExpr};
 
 use super::measurement::{self, Measurement, MeasurementTest};
 
@@ -40,23 +40,6 @@ pub enum Device {
 }
 
 ////////////////////////////////////////////////////////////////
-
-// #[derive(Debug)]
-// pub enum ErrorReason {
-//     TestFailure,
-//     IOError(Box<dyn std::error::Error>),
-// }
-
-// ////////////////////////////////////////////////////////////////
-
-// #[derive(Debug)]
-// pub struct Error {
-//     expression: Expr,
-//     reason: ErrorReason,
-//     detail: String,
-// }
-
-////////////////////////////////////////////////////////////////
 // construction / conversion
 ////////////////////////////////////////////////////////////////
 
@@ -92,21 +75,6 @@ impl Transaction {
     }
 }
 
-// impl Error {
-//     fn from_io_error(transaction: &Transaction, error: std::io::Error) -> Self {
-//         Self {
-//             expression: transaction.expression.clone(),
-//             reason: ErrorReason::IOError(Box::new(error)),
-//             detail: String::new(),
-//         }
-//     }
-
-//     fn with_detail(mut self, detail: &str) -> Self {
-//         self.detail = detail.to_owned();
-//         self
-//     }
-// }
-
 ////////////////////////////////////////////////////////////////
 // methods
 ////////////////////////////////////////////////////////////////
@@ -117,13 +85,11 @@ impl Transaction {
     }
 
     pub fn process<T: Read + Write>(mut self, port: &mut T) -> Result<TransactionStatus, Error> {
-        // let into_ioerror = |error| Error::from_io_error(&self, error);
+        let into_io_error = |error| Error::from_io_error(self.expression.clone(), error);
 
         // Send bytes if needed.
         if !self.txcomplete {
-            // port.write_all(&self.txbytes).map_err(into_ioerror)?;
-
-            port.write_all(&self.txbytes).expect("TCU write error");
+            port.write_all(&self.txbytes).map_err(into_io_error)?;
             self.txcomplete = true;
 
             return if self.device == Device::Printer && self.test.is_none() {
@@ -144,7 +110,7 @@ impl Transaction {
 
                     Err(error) => match error.kind() {
                         io::ErrorKind::TimedOut => break,
-                        _ => panic!("{error}"),
+                        _ => return Err(into_io_error(error)),
                     },
                 }
             }
@@ -203,7 +169,9 @@ impl Transaction {
                     self.txcomplete = false;
                     return Ok(TransactionStatus::Ongoing(self));
                 }
-                Err(measurement::Error::TestFailed(test)) => todo!(),
+                Err(measurement::Error::TestFailed(test)) => {
+                    return Err(Error::from_failed_test(self.expression, test))
+                }
                 _ => todo!(),
             }
         }

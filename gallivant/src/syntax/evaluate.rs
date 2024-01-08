@@ -2,10 +2,12 @@ use std::time::Duration;
 
 use chrono::{Datelike, Local, Timelike};
 
-use crate::execution::{Dialog, FrontendRequest, MeasurementTest, Transaction};
+use crate::{
+    error::Error,
+    execution::{Dialog, FrontendRequest, MeasurementTest, Transaction},
+};
 
 use super::{
-    error::Error,
     expression::{Expr, ParsedExpr},
     state::EvalState,
 };

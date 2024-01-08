@@ -1,3 +1,4 @@
+mod error;
 mod execution;
 mod interpreter;
 mod syntax;
@@ -7,9 +8,9 @@ mod syntax;
 ////////////////////////////////////////////////////////////////
 
 pub use crate::{
+    error::Error,
     execution::{Device, Dialog, FrontendRequest, Transaction, TransactionStatus},
     interpreter::Interpreter,
-    syntax::Error,
 };
 
 ////////////////////////////////////////////////////////////////

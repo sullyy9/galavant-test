@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use ariadne::Source;
+use ariadne::{Report, Source};
 use clap::Parser;
 use serialport::{self, SerialPort};
 
@@ -65,13 +65,16 @@ fn main() {
         Ok(()) => (),
         Err(Error::ParseErrors(errors)) => {
             for error in errors {
-                error
-                    .to_report()
+                Report::from(error)
                     .eprint(Source::from(&script))
                     .expect("Failed to create error report");
             }
         }
-        Err(Error::RuntimeError(_)) => todo!(),
+        Err(Error::RuntimeError(error)) => {
+            Report::from(error)
+                .eprint(Source::from(&script))
+                .expect("Failed to create error report");
+        }
     }
 }
 
@@ -87,7 +90,7 @@ fn run_script(
         let mut current_request = Some(current_request?);
 
         while let Some(request) = current_request {
-            current_request = handle_request(request, debug, tcu, printer);
+            current_request = handle_request(request, debug, tcu, printer)?;
         }
     }
 
@@ -101,7 +104,7 @@ fn handle_request(
     debug: bool,
     tcu: &mut Option<Box<dyn SerialPort>>,
     printer: &mut Option<CommPort>,
-) -> Option<FrontendRequest> {
+) -> Result<Option<FrontendRequest>, Error> {
     if debug {
         println!("{request:?}")
     }
@@ -142,7 +145,7 @@ fn handle_request(
 
         FrontendRequest::TCUTransact(transaction) => {
             if let Some(port) = tcu {
-                handle_transaction(transaction, port);
+                handle_transaction(transaction, port)?;
             } else {
                 panic!("TCU port required but none given");
             }
@@ -180,17 +183,9 @@ fn handle_request(
             }
         }
 
-        // FrontendRequest::PrinterTransmit(tx) => match printer {
-        //     Some(CommPort::Open(port)) => port.write_all(&tx).expect("Printer transmit error"),
-
-        //     Some(CommPort::Closed(_)) => {
-        //         panic!("Attempted to write to printer comm port but port is not open")
-        //     }
-        //     None => panic!("Printer port required but none given"),
-        // },
         FrontendRequest::PrinterTransact(transaction) => match printer {
             Some(CommPort::Open(port)) => {
-                handle_transaction(transaction, port);
+                handle_transaction(transaction, port)?;
             }
 
             Some(CommPort::Closed(_)) => {
@@ -200,24 +195,24 @@ fn handle_request(
         },
     }
 
-    None
+    Ok(None)
 }
 
 ////////////////////////////////////////////////////////////////
 
-fn handle_transaction(mut transaction: Transaction, port: &mut Box<dyn SerialPort>) {
+fn handle_transaction(
+    mut transaction: Transaction,
+    port: &mut Box<dyn SerialPort>,
+) -> Result<(), Error> {
     // Send bytes.
     loop {
-        match transaction.process(port) {
-            Ok(status) => {
-                transaction = match status {
-                    TransactionStatus::Success => break,
-                    TransactionStatus::Ongoing(transaction) => transaction,
-                }
-            }
-            Err(_) => todo!(),
+        transaction = match transaction.process(port)? {
+            TransactionStatus::Success => break,
+            TransactionStatus::Ongoing(transaction) => transaction,
         }
     }
+
+    Ok(())
 }
 
 ////////////////////////////////////////////////////////////////

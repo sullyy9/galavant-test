@@ -1,6 +1,7 @@
 use super::{
+    error::Error,
     execution::FrontendRequest,
-    syntax::{evaluate, parse_from_str, Error, EvalState, ParsedExpr},
+    syntax::{evaluate, parse_from_str, EvalState, ParsedExpr},
 };
 
 ////////////////////////////////////////////////////////////////
@@ -23,7 +24,8 @@ pub struct Interpreter {
 impl Interpreter {
     pub fn try_from_str(script: &str) -> Result<Self, Vec<Error>> {
         Ok(Self {
-            ast: parse_from_str(script)?,
+            ast: parse_from_str(script)
+                .map_err(|error| error.into_iter().map(Error::from).collect::<Vec<Error>>())?,
             index: 0,
             state: EvalState::new(),
         })

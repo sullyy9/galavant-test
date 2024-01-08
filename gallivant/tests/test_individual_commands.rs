@@ -17,9 +17,10 @@ fn test_hpmode() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0], Ok(Request::None))
+            assert_eq!(requests[0], Request::None)
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -34,11 +35,12 @@ fn test_comment() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
                 requests[0],
-                Ok(Request::GuiPrint(String::from("This is a comment 1234")))
+                Request::GuiPrint(String::from("This is a comment 1234"))
             )
         }
         Err(errors) => panic!("{:?}", errors),
@@ -54,9 +56,10 @@ fn test_wait() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0], Ok(Request::Wait(Duration::from_millis(12345))))
+            assert_eq!(requests[0], Request::Wait(Duration::from_millis(12345)))
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -71,14 +74,15 @@ fn test_opendialog() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
                 requests[0],
-                Ok(Request::GuiDialogue {
+                Request::GuiDialogue {
                     kind: Dialog::Notification,
                     message: String::from("Open a dialog")
-                })
+                }
             )
         }
         Err(errors) => panic!("{:?}", errors),
@@ -94,14 +98,15 @@ fn test_waitdialog() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             assert_eq!(
                 requests[0],
-                Ok(Request::GuiDialogue {
+                Request::GuiDialogue {
                     kind: Dialog::ManualInput,
                     message: String::from("Open a wait dialog")
-                })
+                }
             )
         }
         Err(errors) => panic!("{:?}", errors),
@@ -117,9 +122,10 @@ fn test_flush() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0], Ok(Request::TCUFlush))
+            assert_eq!(requests[0], Request::TCUFlush)
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -134,9 +140,10 @@ fn test_protocol() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0], Ok(Request::None))
+            assert_eq!(requests[0], Request::None)
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -151,13 +158,14 @@ fn test_print() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -188,13 +196,14 @@ fn test_settimeformat() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -225,13 +234,14 @@ fn test_setoption() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -262,13 +272,14 @@ fn test_tcuclose() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -299,13 +310,14 @@ fn test_tcuopen() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -336,13 +348,14 @@ fn test_tcutest() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -380,13 +393,14 @@ fn test_printerset() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -417,13 +431,14 @@ fn test_printertest() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -461,9 +476,10 @@ fn test_usbopen() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0], Ok(Request::PrinterOpen))
+            assert_eq!(requests[0], Request::PrinterOpen)
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -478,9 +494,10 @@ fn test_usbclose() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0], Ok(Request::PrinterClose))
+            assert_eq!(requests[0], Request::PrinterClose)
         }
         Err(errors) => panic!("{:?}", errors),
     }
@@ -495,16 +512,17 @@ fn test_usbprint() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let mut expected = "test".as_bytes().to_owned();
             expected.extend_from_slice(&[45, 0xD4]);
 
-            if let Ok(Request::PrinterTransact(transaction)) = requests[0].clone() {
+            if let Request::PrinterTransact(transaction) = requests[0].clone() {
                 let mut port = PortMock::new();
                 assert_eq!(
-                    transaction.process(&mut port),
-                    Ok(TransactionStatus::Success)
+                    transaction.process(&mut port).unwrap(),
+                    TransactionStatus::Success
                 );
 
                 assert_eq!(port.txdata, expected)
@@ -528,14 +546,15 @@ fn test_usbsettimeformat() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
 
-            if let Ok(Request::PrinterTransact(transaction)) = requests[0].clone() {
+            if let Request::PrinterTransact(transaction) = requests[0].clone() {
                 let mut port = PortMock::new();
                 assert_eq!(
-                    transaction.process(&mut port),
-                    Ok(TransactionStatus::Success)
+                    transaction.process(&mut port).unwrap(),
+                    TransactionStatus::Success
                 );
 
                 assert_eq!(port.txdata, vec![0x1B, b't', b'f', 6])
@@ -559,14 +578,15 @@ fn test_usbsetoption() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
 
-            if let Ok(Request::PrinterTransact(transaction)) = requests[0].clone() {
+            if let Request::PrinterTransact(transaction) = requests[0].clone() {
                 let mut port = PortMock::new();
                 assert_eq!(
-                    transaction.process(&mut port),
-                    Ok(TransactionStatus::Success)
+                    transaction.process(&mut port).unwrap(),
+                    TransactionStatus::Success
                 );
 
                 assert_eq!(port.txdata, vec![0x1B, 0x00, b'O', 6, 7])
@@ -590,14 +610,15 @@ fn test_usbprinterset() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
 
-            if let Ok(Request::PrinterTransact(transaction)) = requests[0].clone() {
+            if let Request::PrinterTransact(transaction) = requests[0].clone() {
                 let mut port = PortMock::new();
                 assert_eq!(
-                    transaction.process(&mut port),
-                    Ok(TransactionStatus::Success)
+                    transaction.process(&mut port).unwrap(),
+                    TransactionStatus::Success
                 );
 
                 assert_eq!(port.txdata, vec![0x1B, 0x00, b'S', 2])
@@ -621,13 +642,14 @@ fn test_usbprintertest() {
     match Interpreter::try_from_str(script) {
         Ok(interpreter) => {
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
+            let requests: Vec<FrontendRequest> = requests.into_iter().map(|r| r.unwrap()).collect();
 
             assert_eq!(requests.len(), 1);
             let request = requests.first().unwrap().to_owned();
 
-            assert!(matches!(request, Ok(Request::PrinterTransact(_))));
+            assert!(matches!(request, Request::PrinterTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {

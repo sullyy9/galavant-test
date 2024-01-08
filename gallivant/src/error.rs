@@ -1,49 +1,41 @@
-use ariadne::{Label, Report, ReportKind};
+use ariadne::{Config, Label, Report, ReportKind};
 
-use crate::expression::ExprKind;
-
-type Span = std::ops::Range<usize>;
+use crate::{
+    execution::FailedTest,
+    syntax::{self, Expr, ParsedExpr},
+};
 
 ////////////////////////////////////////////////////////////////
 // types
 ////////////////////////////////////////////////////////////////
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum Reason {
-    Unexpected {
-        span: Span,
-        expected: Vec<Option<char>>,
-        found: Option<char>,
-    },
-    Unclosed,
+#[derive(Debug)]
+pub struct Error {
+    reason: ErrorReason,
+    notes: Vec<ErrorNote>,
+}
 
-    /// An argument was of the wrong type.
-    UnrecognisedCommand {
-        span: Span,
-    },
+////////////////////////////////////////////////////////////////
 
-    /// An argument was of the wrong type.
-    ArgType {
-        span: Span,
-        expected: Vec<&'static str>,
-        found: &'static str,
+#[derive(Debug)]
+pub enum ErrorReason {
+    SyntaxError(syntax::ErrorReason),
+    TestFailure {
+        expression: ParsedExpr,
+        test: FailedTest,
     },
-
-    /// An argument value beyond limits.
-    ArgValue {
-        span: Span,
-        value: u32,
-        limits: (u32, u32),
+    IOError {
+        expression: ParsedExpr,
+        error: std::io::Error,
     },
 }
 
 ////////////////////////////////////////////////////////////////
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Error {
-    reason: Reason,
-    notes: Vec<&'static str>,
-    help: Vec<&'static str>,
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ErrorNote {
+    Note(&'static str),
+    Help(&'static str),
 }
 
 ////////////////////////////////////////////////////////////////
@@ -51,63 +43,127 @@ pub struct Error {
 ////////////////////////////////////////////////////////////////
 
 impl Error {
-    pub fn unrecognised_command(span: Span) -> Self {
+    pub fn from_io_error(expression: ParsedExpr, error: std::io::Error) -> Self {
         Self {
-            reason: Reason::UnrecognisedCommand { span },
+            reason: ErrorReason::IOError { expression, error },
             notes: Vec::new(),
-            help: Vec::new(),
         }
     }
 
-    /// Create a new error resulting from an argument being the wrong type.
-    ///
-    /// # Arguments
-    /// * `span` - Area in the input that the error occured.
-    /// * `expected` - Expected argument types. Only the enum variant is used here, not the values.
-    /// * `found` - Type of the found argument.
-    ///
-    /// # TODO
-    /// Having to init ExprKind variants just pass in as the expected types isn't great. Consider
-    /// Having a serperate Token enum which just contains valueless variants for this purpose. Could
-    /// also provide methods for access the token's string and parser.
-    ///
-    pub fn argument_type<'a, Iter: IntoIterator<Item = &'a ExprKind>>(
-        span: Span,
-        expected: Iter,
-        found: &ExprKind,
-    ) -> Self {
-        let expected = expected.into_iter().map(|expr| expr.kind_name()).collect();
-        let found = found.kind_name();
-
+    pub fn from_failed_test(expression: ParsedExpr, test: FailedTest) -> Self {
         Self {
-            reason: Reason::ArgType {
-                span,
-                expected,
-                found,
-            },
+            reason: ErrorReason::TestFailure { expression, test },
             notes: Vec::new(),
-            help: Vec::new(),
         }
     }
 
-    /// Create a new error resulting from an arguments value being outside of limits.
-    ///
-    /// # Arguments
-    /// * `span` - Area in the input that the error occured.
-    /// * `value` - Found argument value.
-    /// * `limits` - Minumum and maximum value allowed for the argument.
-    ///
-    pub fn argument_value_size(span: Span, value: u32, limits: (u32, u32)) -> Self {
-        debug_assert!(limits.0 <= limits.1);
+    pub fn with_note(mut self, note: ErrorNote) -> Self {
+        self.notes.push(note);
+        self
+    }
+}
 
+////////////////////////////////////////////////////////////////
+
+impl From<syntax::Error> for Error {
+    fn from(error: syntax::Error) -> Self {
         Self {
-            reason: Reason::ArgValue {
-                span,
-                value,
-                limits,
-            },
-            notes: Vec::new(),
-            help: Vec::new(),
+            reason: ErrorReason::SyntaxError(error.reason().to_owned()),
+            notes: error.notes().to_owned(),
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+impl From<Error> for Report<'_> {
+    fn from(error: Error) -> Self {
+        Report::from(&error)
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+impl From<&Error> for Report<'_> {
+    fn from(error: &Error) -> Self {
+        let mut report = Report::build(ReportKind::Error, (), 0)
+            .with_config(Config::default().with_cross_gap(true))
+            .with_message(error.reason.message())
+            .with_labels(error.reason.labels());
+
+        for note in error.notes.iter() {
+            report = match note {
+                ErrorNote::Note(msg) => report.with_note(msg),
+                ErrorNote::Help(msg) => report.with_help(msg),
+            };
+        }
+
+        report.finish()
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+impl ErrorReason {
+    pub fn message(&self) -> String {
+        match self {
+            ErrorReason::SyntaxError(reason) => format!("Syntax error - {}", reason.message()),
+            ErrorReason::TestFailure { test, .. } => format!("Test failed - {}", test.message),
+            ErrorReason::IOError { error, .. } => format!("IO error - {}", error),
+        }
+    }
+
+    pub fn labels(&self) -> Vec<Label> {
+        match self {
+            ErrorReason::SyntaxError(reason) => reason.labels(),
+
+            ErrorReason::TestFailure { expression, test } => {
+                let range_expr = match expression.expression() {
+                    Expr::TCUTest { min, max, .. } => Some((min, max)),
+                    Expr::PrinterTest { min, max, .. } => Some((min, max)),
+                    Expr::USBPrinterTest { min, max, .. } => Some((min, max)),
+                    _ => None,
+                };
+
+                // Create a label highlighting the failing command.
+                let mut labels = Vec::new();
+
+                // Create a label highlighting the bound that the measured value violated.
+                if test.measurement > *test.expected.end() {
+                    let span = range_expr
+                        .map(|(_, max)| max.span())
+                        .unwrap_or(expression.span());
+
+                    labels.push(
+                        Label::new(span.clone())
+                            .with_message(format!(
+                                "Expected maximum value of {} but measured {}",
+                                test.expected.end(),
+                                test.measurement
+                            ))
+                            .with_order(1),
+                    );
+                }
+
+                if test.measurement < *test.expected.start() {
+                    let span = range_expr
+                        .map(|(min, _)| min.span())
+                        .unwrap_or(expression.span());
+
+                    labels.push(Label::new(span.clone()).with_message(format!(
+                        "Expected minimum value of {} but measured {}",
+                        test.expected.start(),
+                        test.measurement
+                    )));
+                }
+
+                labels
+            }
+
+            ErrorReason::IOError { expression, .. } => {
+                vec![Label::new(expression.span().clone())
+                    .with_message("When executing this command")]
+            }
         }
     }
 }
@@ -117,26 +173,12 @@ impl Error {
 ////////////////////////////////////////////////////////////////
 
 impl Error {
-    pub fn reason(&self) -> &Reason {
+    pub fn reason(&self) -> &ErrorReason {
         &self.reason
     }
 
-    pub fn notes(&self) -> &[&'static str] {
+    pub fn notes(&self) -> &[ErrorNote] {
         &self.notes
-    }
-
-    pub fn help(&self) -> &[&'static str] {
-        &self.help
-    }
-
-    pub fn with_note(mut self, note: &'static str) -> Self {
-        self.notes.push(note);
-        self
-    }
-
-    pub fn with_help(mut self, help: &'static str) -> Self {
-        self.help.push(help);
-        self
     }
 }
 
@@ -146,168 +188,22 @@ impl Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.to_report())
+        write!(f, "{:?}", Report::from(self))
     }
 }
 
 ////////////////////////////////////////////////////////////////
 
-impl Reason {
-    fn as_message(&self) -> &'static str {
-        match self {
-            Reason::Unexpected { .. } => "Unexpected token",
-            Reason::Unclosed => todo!(),
-            Reason::UnrecognisedCommand { .. } => "Unrecognised command found",
-            Reason::ArgType { .. } => "Invalid argument type",
-            Reason::ArgValue { .. } => "Argument value exceeds limits",
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.reason {
+            ErrorReason::SyntaxError(_) => None,
+            ErrorReason::TestFailure { .. } => None,
+            ErrorReason::IOError {
+                expression: _,
+                error,
+            } => Some(error),
         }
-    }
-
-    fn labels(&self) -> Vec<Label> {
-        match self {
-            Reason::Unexpected {
-                span,
-                expected,
-                found,
-            } => {
-                let expected: Vec<String> = expected
-                    .iter()
-                    .map(|e| e.map_or("End of input".to_owned(), |c| c.to_string()))
-                    .collect();
-                let found = found.map_or("End of input".to_owned(), |c| c.to_string());
-
-                let expected_str = if expected.len() == 1 {
-                    format!("Expected '{}'", expected[0])
-                } else if let Some(first) = expected.first() {
-                    let expected = expected
-                        .iter()
-                        .skip(1)
-                        .map(|s| format!("'{}'", s))
-                        .fold(format!("'{}'", first), |acc, s| format!("{acc}, {s}"));
-
-                    format!("Expected one of {}", expected)
-                } else {
-                    String::from("Expected none")
-                };
-
-                vec![
-                    Label::new(span.clone())
-                        .with_message(expected_str)
-                        .with_priority(10),
-                    Label::new(span.clone())
-                        .with_message(format!("Found '{}'", found))
-                        .with_priority(9),
-                ]
-            }
-            Reason::Unclosed => todo!(),
-
-            Reason::UnrecognisedCommand { span } => {
-                vec![Label::new(span.clone())
-                    .with_message("Unrecognised command")
-                    .with_priority(10)]
-            }
-
-            Reason::ArgType {
-                span,
-                expected,
-                found,
-            } => {
-                let expected_str = if expected.len() == 1 {
-                    format!("Expected '{}'", expected[0])
-                } else if let Some(first) = expected.first() {
-                    let expected = expected
-                        .iter()
-                        .skip(1)
-                        .map(|s| format!("'{s}'"))
-                        .fold(format!("'{first}'"), |acc, s| format!("{acc}, {s}"));
-
-                    format!("Expected one of {}", expected)
-                } else {
-                    String::from("None")
-                };
-
-                vec![
-                    Label::new(span.clone())
-                        .with_message(expected_str)
-                        .with_priority(10),
-                    Label::new(span.clone())
-                        .with_message(format!("Found '{}'", found))
-                        .with_priority(9),
-                ]
-            }
-
-            Reason::ArgValue {
-                span,
-                value,
-                limits,
-            } => {
-                let (min, max) = limits;
-                vec![
-                    Label::new(span.clone())
-                        .with_message(format!("Argument has value {value}"))
-                        .with_priority(10),
-                    Label::new(span.clone())
-                        .with_message(format!("Argument must be between {min} and {max}"))
-                        .with_priority(9),
-                ]
-            }
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////
-
-impl Error {
-    pub fn to_report(&self) -> Report {
-        let mut report = Report::build(ReportKind::Error, (), 0)
-            .with_message(self.reason.as_message())
-            .with_labels(self.reason.labels());
-
-        for note in self.notes.iter() {
-            report = report.with_note(note);
-        }
-
-        for help in self.help.iter() {
-            report = report.with_help(help);
-        }
-
-        report.finish()
-    }
-}
-
-////////////////////////////////////////////////////////////////
-
-impl std::error::Error for Error {}
-
-////////////////////////////////////////////////////////////////
-
-impl chumsky::error::Error<char> for Error {
-    type Span = Span;
-    type Label = &'static str;
-
-    fn expected_input_found<Iter: IntoIterator<Item = Option<char>>>(
-        span: Self::Span,
-        expected: Iter,
-        found: Option<char>,
-    ) -> Self {
-        Self {
-            reason: Reason::Unexpected {
-                span,
-                expected: expected.into_iter().collect(),
-                found,
-            },
-            notes: Vec::new(),
-            help: Vec::new(),
-        }
-    }
-
-    fn with_label(mut self, label: Self::Label) -> Self {
-        self.notes.push(label);
-        self
-    }
-
-    fn merge(self, _: Self) -> Self {
-        self
     }
 }
 

@@ -20,11 +20,11 @@ SETTIMEFORMAT 5
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 2);
-            let request = requests[1].clone();
+            let request = requests[1].as_ref().unwrap().clone();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -60,11 +60,11 @@ SETOPTION 6, 8
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 2);
-            let request = requests[1].clone();
+            let request = requests[1].as_ref().unwrap().clone();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -100,11 +100,11 @@ PRINTERSET 2
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 2);
-            let request = requests[1].clone();
+            let request = requests[1].as_ref().unwrap().clone();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -117,8 +117,8 @@ PRINTERSET 2
                 // Echo.
                 port.rxdata.extend(port.txdata.iter());
                 assert_eq!(
-                    transaction.process(&mut port),
-                    Ok(TransactionStatus::Success)
+                    transaction.process(&mut port).unwrap(),
+                    TransactionStatus::Success
                 );
             }
         }
@@ -140,11 +140,11 @@ PRINTERTEST 3, 1000, 12000, 1, "FAIL"
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 2);
-            let request = requests[1].clone();
+            let request = requests[1].as_ref().unwrap().clone();
 
-            assert!(matches!(request, Ok(Request::TCUTransact(_))));
+            assert!(matches!(request, Request::TCUTransact(_)));
 
-            if let Ok(Request::TCUTransact(mut transaction)) = request {
+            if let Request::TCUTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {
@@ -188,11 +188,11 @@ USBSETTIMEFORMAT 6
 
             assert_eq!(requests.len(), 2);
 
-            if let Ok(Request::PrinterTransact(transaction)) = requests[1].clone() {
+            if let Request::PrinterTransact(transaction) = requests[1].as_ref().unwrap().clone() {
                 let mut port = PortMock::new();
                 assert_eq!(
-                    transaction.process(&mut port),
-                    Ok(TransactionStatus::Success)
+                    transaction.process(&mut port).unwrap(),
+                    TransactionStatus::Success
                 );
 
                 assert_eq!(port.txdata, vec![0x1B, 0x00, b't', b'f', 6])
@@ -222,11 +222,11 @@ USBSETOPTION 6, 7
 
             assert_eq!(requests.len(), 2);
 
-            if let Ok(Request::PrinterTransact(transaction)) = requests[1].clone() {
+            if let Request::PrinterTransact(transaction) = requests[1].as_ref().unwrap().clone() {
                 let mut port = PortMock::new();
                 assert_eq!(
-                    transaction.process(&mut port),
-                    Ok(TransactionStatus::Success)
+                    transaction.process(&mut port).unwrap(),
+                    TransactionStatus::Success
                 );
 
                 assert_eq!(port.txdata, vec![0x1B, 0x00, 0x00, b'O', 6, 7])
@@ -256,11 +256,11 @@ USBPRINTERSET 2
 
             assert_eq!(requests.len(), 2);
 
-            if let Ok(Request::PrinterTransact(transaction)) = requests[1].clone() {
+            if let Request::PrinterTransact(transaction) = requests[1].as_ref().unwrap().clone() {
                 let mut port = PortMock::new();
                 assert_eq!(
-                    transaction.process(&mut port),
-                    Ok(TransactionStatus::Success)
+                    transaction.process(&mut port).unwrap(),
+                    TransactionStatus::Success
                 );
 
                 assert_eq!(port.txdata, vec![0x1B, 0x00, 0x00, b'S', 2])
@@ -289,11 +289,11 @@ USBPRINTERTEST 3, 1000, 12000, 1, "FAIL"
             let requests: Vec<Result<FrontendRequest, Error>> = interpreter.collect();
 
             assert_eq!(requests.len(), 2);
-            let request = requests[1].clone();
+            let request = requests[1].as_ref().unwrap().clone();
 
-            assert!(matches!(request, Ok(Request::PrinterTransact(_))));
+            assert!(matches!(request, Request::PrinterTransact(_)));
 
-            if let Ok(Request::PrinterTransact(mut transaction)) = request {
+            if let Request::PrinterTransact(mut transaction) = request {
                 let mut port = PortMock::new();
 
                 if let Ok(TransactionStatus::Ongoing(tr)) = transaction.process(&mut port) {

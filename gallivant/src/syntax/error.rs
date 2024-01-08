@@ -2,6 +2,8 @@ use ariadne::{Label, Report, ReportKind};
 
 use super::expression::ExprKind;
 
+pub use crate::error::ErrorNote;
+
 type Span = std::ops::Range<usize>;
 
 ////////////////////////////////////////////////////////////////
@@ -35,14 +37,6 @@ pub enum ErrorReason {
         value: u32,
         limits: (u32, u32),
     },
-}
-
-////////////////////////////////////////////////////////////////
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ErrorNote {
-    Note(&'static str),
-    Help(&'static str),
 }
 
 ////////////////////////////////////////////////////////////////
@@ -141,14 +135,14 @@ impl Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.to_report())
+        write!(f, "{:?}", self)
     }
 }
 
 ////////////////////////////////////////////////////////////////
 
 impl ErrorReason {
-    fn as_message(&self) -> &'static str {
+    pub fn message(&self) -> &'static str {
         match self {
             ErrorReason::Unexpected { .. } => "Unexpected token",
             ErrorReason::Unclosed => todo!(),
@@ -158,7 +152,7 @@ impl ErrorReason {
         }
     }
 
-    fn labels(&self) -> Vec<Label> {
+    pub fn labels(&self) -> Vec<Label> {
         match self {
             ErrorReason::Unexpected {
                 span,
@@ -255,7 +249,7 @@ impl ErrorReason {
 impl Error {
     pub fn to_report(&self) -> Report {
         let mut report = Report::build(ReportKind::Error, (), 0)
-            .with_message(self.reason.as_message())
+            .with_message(self.reason.message())
             .with_labels(self.reason.labels());
 
         for note in self.notes.iter() {
