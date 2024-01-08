@@ -40,6 +40,15 @@
             "problemMatcher": [],
         },
         {
+            "label": "Run Debug Error Utility",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "run", "-p", "gallivant-errors"
+            ],
+            "problemMatcher": [],
+        },
+        {
             "label": "Run Tests All",
             "type": "shell",
             "command": "cargo",

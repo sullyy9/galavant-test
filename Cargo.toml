@@ -3,4 +3,9 @@ resolver = "2"
 members = [
     "gallivant",
     "gallivant-cli",
+    "gallivant-errors",
+]
+default-members = [
+    "gallivant",
+    "gallivant-cli",
 ]
