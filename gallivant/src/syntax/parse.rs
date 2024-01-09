@@ -368,32 +368,7 @@ fn parser() -> impl Parser<char, Vec<ParsedExpr>, Error = Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-
-    use ariadne::Source;
-
     use super::*;
-
-    ////////////////////////////////////////////////////////////////
-
-    fn print_error_reports(script: &str, errors: &[Error]) {
-        for error in errors {
-            let report = {
-                let report = error.to_report();
-                let mut string = Vec::new();
-
-                report.write(Source::from(script), string.by_ref()).unwrap();
-
-                String::from_utf8(string)
-            };
-
-            if let Ok(report) = report {
-                panic!("Parser returned error: {}", report)
-            } else {
-                panic!("Parser returned unknown error: {:#?}", report)
-            }
-        }
-    }
 
     ////////////////////////////////////////////////////////////////
 
@@ -426,109 +401,78 @@ USBPRINTERSET 6
 USBPRINTERTEST 4, 133, 987, 5, "error message"
         "#;
 
-        let parsed_ast = parser().parse(script);
-
-        let expected_ast = [
-            Expr::HPMode,
-            Expr::Comment(Box::new(ParsedExpr::from_str_default("Test"))),
-            Expr::Wait(Box::new(ParsedExpr::from_uint_default(1234))),
-            Expr::OpenDialog(Box::new(ParsedExpr::from_str_default("Hello"))),
-            Expr::WaitDialog(Box::new(ParsedExpr::from_str_default("PLEASE WAIT"))),
-            Expr::Flush,
-            Expr::Protocol,
-            Expr::Print(vec![ParsedExpr::from_str_default("print me")]),
-            Expr::SetTimeFormat(Box::new(ParsedExpr::from_uint_default(0xA6))),
-            Expr::SetTime,
-            Expr::SetOption {
-                option: Box::new(ParsedExpr::from_uint_default(4)),
-                setting: Box::new(ParsedExpr::from_uint_default(6)),
-            },
-            Expr::TCUClose(Box::new(ParsedExpr::from_uint_default(4))),
-            Expr::TCUOpen(Box::new(ParsedExpr::from_uint_default(0xF))),
-            Expr::TCUTest {
-                channel: Box::new(ParsedExpr::from_uint_default(5)),
-                min: Box::new(ParsedExpr::from_uint_default(12000)),
-                max: Box::new(ParsedExpr::from_uint_default(56000)),
-                retries: Box::new(ParsedExpr::from_uint_default(0)),
-                message: Box::new(ParsedExpr::from_str_default("error")),
-            },
-            Expr::PrinterSet(Box::new(ParsedExpr::from_uint_default(1))),
-            Expr::PrinterTest {
-                channel: Box::new(ParsedExpr::from_uint_default(4)),
-                min: Box::new(ParsedExpr::from_uint_default(133)),
-                max: Box::new(ParsedExpr::from_uint_default(987)),
-                retries: Box::new(ParsedExpr::from_uint_default(5)),
-                message: Box::new(ParsedExpr::from_str_default("error message")),
-            },
-            Expr::USBOpen,
-            Expr::USBClose,
-            Expr::USBPrint(vec![ParsedExpr::from_str_default("Look at me I can print")]),
-            Expr::USBSetTimeFormat(Box::new(ParsedExpr::from_uint_default(5))),
-            Expr::USBSetTime,
-            Expr::USBSetOption {
-                option: Box::new(ParsedExpr::from_uint_default(5)),
-                setting: Box::new(ParsedExpr::from_uint_default(9)),
-            },
-            Expr::USBPrinterSet(Box::new(ParsedExpr::from_uint_default(6))),
-            Expr::USBPrinterTest {
-                channel: Box::new(ParsedExpr::from_uint_default(4)),
-                min: Box::new(ParsedExpr::from_uint_default(133)),
-                max: Box::new(ParsedExpr::from_uint_default(987)),
-                retries: Box::new(ParsedExpr::from_uint_default(5)),
-                message: Box::new(ParsedExpr::from_str_default("error message")),
-            },
-        ];
-        let expected_ast = expected_ast.map(ParsedExpr::from_kind_default);
-
-        match parsed_ast {
-            Ok(ast) => {
-                for (i, (actual_expr, expected_expr)) in
-                    std::iter::zip(ast, expected_ast).enumerate()
-                {
-                    println!("{:?}", actual_expr);
-                    assert_eq!(actual_expr, expected_expr, "At expression {}", i);
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [
+                Expr::HPMode.into(),
+                Expr::Comment(Expr::String("Test".to_owned()).into()).into(),
+                Expr::Wait(Expr::UInt(1234).into()).into(),
+                Expr::OpenDialog(Expr::String("Hello".to_owned()).into()).into(),
+                Expr::WaitDialog(Expr::String("PLEASE WAIT".to_owned()).into()).into(),
+                Expr::Flush.into(),
+                Expr::Protocol.into(),
+                Expr::Print(vec![Expr::String("print me".to_owned()).into()]).into(),
+                Expr::SetTimeFormat(Expr::UInt(0xA6).into()).into(),
+                Expr::SetTime.into(),
+                Expr::SetOption {
+                    option: Expr::UInt(4).into(),
+                    setting: Expr::UInt(6).into(),
                 }
-            }
-            Err(errors) => {
-                if let Some(error) = errors.first() {
-                    let report = {
-                        let mut string = Vec::new();
-                        error
-                            .to_report()
-                            .write(Source::from(script), string.by_ref())
-                            .unwrap();
-
-                        String::from_utf8(string)
-                    };
-
-                    if let Ok(report) = report {
-                        panic!("Parser returned error: {}", report)
-                    } else {
-                        panic!("Parser returned error: {:#?}", report)
-                    }
+                .into(),
+                Expr::TCUClose(Expr::UInt(4).into()).into(),
+                Expr::TCUOpen(Expr::UInt(0xF).into()).into(),
+                Expr::TCUTest {
+                    channel: Expr::UInt(5).into(),
+                    min: Expr::UInt(12000).into(),
+                    max: Expr::UInt(56000).into(),
+                    retries: Expr::UInt(0).into(),
+                    message: Expr::String("error".to_owned()).into(),
                 }
-            }
-        }
+                .into(),
+                Expr::PrinterSet(Expr::UInt(1).into()).into(),
+                Expr::PrinterTest {
+                    channel: Expr::UInt(4).into(),
+                    min: Expr::UInt(133).into(),
+                    max: Expr::UInt(987).into(),
+                    retries: Expr::UInt(5).into(),
+                    message: Expr::String("error message".to_owned()).into(),
+                }
+                .into(),
+                Expr::USBOpen.into(),
+                Expr::USBClose.into(),
+                Expr::USBPrint(vec![
+                    Expr::String("Look at me I can print".to_owned()).into()
+                ])
+                .into(),
+                Expr::USBSetTimeFormat(Expr::UInt(5).into()).into(),
+                Expr::USBSetTime.into(),
+                Expr::USBSetOption {
+                    option: Expr::UInt(5).into(),
+                    setting: Expr::UInt(9).into(),
+                }
+                .into(),
+                Expr::USBPrinterSet(Expr::UInt(6).into()).into(),
+                Expr::USBPrinterTest {
+                    channel: Expr::UInt(4).into(),
+                    min: Expr::UInt(133).into(),
+                    max: Expr::UInt(987).into(),
+                    retries: Expr::UInt(5).into(),
+                    message: Expr::String("error message".to_owned()).into(),
+                }
+                .into(),
+            ]
+        );
     }
 
     ////////////////////////////////////////////////////////////////
 
     #[test]
     fn test_single_command() {
-        let script = r#"COMMENT "This is a comment 1234""#;
-
-        match parse_from_str(script) {
-            Ok(exprs) => {
-                assert_eq!(exprs.len(), 1);
-                assert_eq!(
-                    exprs[0],
-                    ParsedExpr::from_kind_default(Expr::Comment(Box::new(
-                        ParsedExpr::from_str_default("This is a comment 1234")
-                    )))
-                )
-            }
-            Err(errors) => panic!("{:?}", errors),
-        }
+        let script = r#"COMMENT "Comment 1234""#;
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [Expr::Comment(Expr::String("Comment 1234".to_owned()).into()).into()]
+        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -536,19 +480,10 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
     #[test]
     fn test_hex_arg_leading_0s() {
         let script = r#"TCUOPEN $00C"#;
-
-        match parse_from_str(script) {
-            Ok(exprs) => {
-                assert_eq!(exprs.len(), 1);
-                assert_eq!(
-                    exprs[0],
-                    ParsedExpr::from_kind_default(Expr::TCUOpen(Box::new(
-                        ParsedExpr::from_uint_default(0x0C)
-                    )))
-                )
-            }
-            Err(errors) => print_error_reports(script, &errors),
-        }
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [Expr::TCUOpen(Expr::UInt(0x0C).into()).into()]
+        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -556,19 +491,10 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
     #[test]
     fn test_hex_arg_0() {
         let script = r#"TCUOPEN $00"#;
-
-        match parse_from_str(script) {
-            Ok(exprs) => {
-                assert_eq!(exprs.len(), 1);
-                assert_eq!(
-                    exprs[0],
-                    ParsedExpr::from_kind_default(Expr::TCUOpen(Box::new(
-                        ParsedExpr::from_uint_default(0)
-                    )))
-                )
-            }
-            Err(errors) => print_error_reports(script, &errors),
-        }
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [Expr::TCUOpen(Expr::UInt(0).into()).into()]
+        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -576,19 +502,10 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
     #[test]
     fn test_dec_arg_0() {
         let script = r#"TCUOPEN 0"#;
-
-        match parse_from_str(script) {
-            Ok(exprs) => {
-                assert_eq!(exprs.len(), 1);
-                assert_eq!(
-                    exprs[0],
-                    ParsedExpr::from_kind_default(Expr::TCUOpen(Box::new(
-                        ParsedExpr::from_uint_default(0)
-                    )))
-                )
-            }
-            Err(errors) => print_error_reports(script, &errors),
-        }
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [Expr::TCUOpen(Expr::UInt(0).into()).into()]
+        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -597,35 +514,13 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
     fn test_invalid_string_type_arg() {
         let script = r#"COMMENT 1234"#;
 
-        let parsed_ast = parser().parse(script);
+        let errors = parser().parse(script).unwrap_err();
 
-        match parsed_ast {
-            Ok(_) => {}
-            Err(errors) => {
-                assert_eq!(errors.len(), 1);
-
-                #[allow(unreachable_code)]
-                if let Some(error) = errors.first() {
-                    assert!(matches!(error.reason(), ErrorReason::ArgType { .. }));
-                    return;
-
-                    let report = {
-                        let report = error.to_report();
-                        let mut string = Vec::new();
-
-                        report.write(Source::from(script), string.by_ref()).unwrap();
-
-                        String::from_utf8(string)
-                    };
-
-                    if let Ok(report) = report {
-                        panic!("Parser returned error: {}", report)
-                    } else {
-                        panic!("Parser returned unknown error: {:#?}", report)
-                    }
-                }
-            }
-        }
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(
+            errors.first().unwrap().reason(),
+            ErrorReason::ArgType { .. }
+        ));
     }
 
     ////////////////////////////////////////////////////////////////
@@ -634,35 +529,13 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
     fn test_invalid_uint_type_arg() {
         let script = r#"WAIT "$F54A""#;
 
-        let parsed_ast = parser().parse(script);
+        let errors = parser().parse(script).unwrap_err();
 
-        match parsed_ast {
-            Ok(_) => {}
-            Err(errors) => {
-                assert_eq!(errors.len(), 1);
-
-                #[allow(unreachable_code)]
-                if let Some(error) = errors.first() {
-                    assert!(matches!(error.reason(), ErrorReason::ArgType { .. }));
-                    return;
-
-                    let report = {
-                        let report = error.to_report();
-                        let mut string = Vec::new();
-
-                        report.write(Source::from(script), string.by_ref()).unwrap();
-
-                        String::from_utf8(string)
-                    };
-
-                    if let Ok(report) = report {
-                        panic!("Parser returned error: {}", report)
-                    } else {
-                        panic!("Parser returned unknown error: {:#?}", report)
-                    }
-                }
-            }
-        }
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(
+            errors.first().unwrap().reason(),
+            ErrorReason::ArgType { .. }
+        ));
     }
 
     ////////////////////////////////////////////////////////////////
@@ -671,35 +544,13 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
     fn test_invalid_uint_value_arg() {
         let script = r#"TCUCLOSE 256"#;
 
-        let parsed_ast = parser().parse(script);
+        let errors = parser().parse(script).unwrap_err();
 
-        match parsed_ast {
-            Ok(_) => {}
-            Err(errors) => {
-                assert_eq!(errors.len(), 1);
-
-                #[allow(unreachable_code)]
-                if let Some(error) = errors.first() {
-                    assert!(matches!(error.reason(), ErrorReason::ArgValue { .. }));
-                    return;
-
-                    let report = {
-                        let report = error.to_report();
-                        let mut string = Vec::new();
-
-                        report.write(Source::from(script), string.by_ref()).unwrap();
-
-                        String::from_utf8(string)
-                    };
-
-                    if let Ok(report) = report {
-                        panic!("Parser returned error: {}", report)
-                    } else {
-                        panic!("Parser returned unknown error: {:#?}", report)
-                    }
-                }
-            }
-        }
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(
+            errors.first().unwrap().reason(),
+            ErrorReason::ArgValue { .. }
+        ));
     }
 
     ////////////////////////////////////////////////////////////////
@@ -707,20 +558,10 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
     #[test]
     fn test_comment_own_line() {
         let script = r#";Test comment"#;
-        let parsed_ast = parser().parse(script);
-
-        match parsed_ast {
-            Ok(ast) => {
-                assert_eq!(ast.len(), 1);
-                let expr = ast.first().unwrap();
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::ScriptComment("Test comment".to_owned())
-                )
-            }
-
-            Err(errors) => print_error_reports(script, &errors),
-        }
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [Expr::ScriptComment("Test comment".to_owned()).into()]
+        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -732,38 +573,16 @@ USBPRINTERTEST 4, 133, 987, 5, "error message"
 PRINT "test" ; Comment
 ;Comment
         "#;
-        let parsed_ast = parser().parse(script);
 
-        match parsed_ast {
-            Ok(ast) => {
-                assert_eq!(ast.len(), 4);
-                let expr = &ast[0];
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::ScriptComment("Comment".to_owned())
-                );
-
-                let expr = &ast[1];
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::Print(vec![ParsedExpr::from_str_default("test")])
-                );
-
-                let expr = &ast[2];
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::ScriptComment(" Comment".to_owned())
-                );
-
-                let expr = &ast[3];
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::ScriptComment("Comment".to_owned())
-                );
-            }
-
-            Err(errors) => print_error_reports(script, &errors),
-        }
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [
+                Expr::ScriptComment("Comment".to_owned()).into(),
+                Expr::Print(vec![Expr::String("test".to_owned()).into()]).into(),
+                Expr::ScriptComment(" Comment".to_owned()).into(),
+                Expr::ScriptComment("Comment".to_owned()).into(),
+            ]
+        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -775,32 +594,15 @@ PRINT "test" ; Comment
 ; Comment ;;;; Comment ;;;
 ;;;;Comment;;;
         "#;
-        let parsed_ast = parser().parse(script);
 
-        match parsed_ast {
-            Ok(ast) => {
-                assert_eq!(ast.len(), 3);
-                let expr = &ast[0];
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::ScriptComment(";;;;;Comment".to_owned())
-                );
-
-                let expr = &ast[1];
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::ScriptComment(" Comment ;;;; Comment ;;;".to_owned())
-                );
-
-                let expr = &ast[2];
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::ScriptComment(";;;Comment;;;".to_owned())
-                );
-            }
-
-            Err(errors) => print_error_reports(script, &errors),
-        }
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [
+                Expr::ScriptComment(";;;;;Comment".to_owned()).into(),
+                Expr::ScriptComment(" Comment ;;;; Comment ;;;".to_owned()).into(),
+                Expr::ScriptComment(";;;Comment;;;".to_owned()).into(),
+            ]
+        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -808,20 +610,11 @@ PRINT "test" ; Comment
     #[test]
     fn test_commented_out_command() {
         let script = r#"; PRINT "test""#;
-        let parsed_ast = parser().parse(script);
 
-        match parsed_ast {
-            Ok(ast) => {
-                assert_eq!(ast.len(), 1);
-                let expr = ast.first().unwrap();
-                assert_eq!(
-                    *expr.expression(),
-                    Expr::ScriptComment(" PRINT \"test\"".to_owned())
-                )
-            }
-
-            Err(errors) => print_error_reports(script, &errors),
-        }
+        assert_eq!(
+            parse_from_str(script).unwrap(),
+            [Expr::ScriptComment(" PRINT \"test\"".to_owned()).into(),]
+        );
     }
 }
 

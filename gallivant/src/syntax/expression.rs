@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{borrow::Borrow, ops::Range};
 
 ////////////////////////////////////////////////////////////////
 // types
@@ -156,9 +156,9 @@ impl ParsedExpr {
 
 ////////////////////////////////////////////////////////////////
 
-impl From<Expr> for ExprKind {
-    fn from(expr: Expr) -> Self {
-        match expr {
+impl<T: Borrow<Expr>> From<T> for ExprKind {
+    fn from(expr: T) -> Self {
+        match expr.borrow() {
             Expr::String(_) => ExprKind::String,
             Expr::UInt(_) => ExprKind::UInt,
             Expr::ScriptComment(_) => ExprKind::ScriptComment,
@@ -194,39 +194,23 @@ impl From<Expr> for ExprKind {
 
 ////////////////////////////////////////////////////////////////
 
-impl From<&Expr> for ExprKind {
-    fn from(expr: &Expr) -> Self {
-        match expr {
-            Expr::String(_) => ExprKind::String,
-            Expr::UInt(_) => ExprKind::UInt,
-            Expr::ScriptComment(_) => ExprKind::ScriptComment,
-            Expr::HPMode => ExprKind::HPMode,
-            Expr::Comment(_) => ExprKind::Comment,
-            Expr::Wait(_) => ExprKind::Wait,
-            Expr::OpenDialog(_) => ExprKind::OpenDialog,
-            Expr::WaitDialog(_) => ExprKind::WaitDialog,
-            Expr::Flush => ExprKind::Flush,
-            Expr::Protocol => ExprKind::Protocol,
-            Expr::Print(_) => ExprKind::Print,
-            Expr::SetTimeFormat(_) => ExprKind::SetTimeFormat,
-            Expr::SetTime => ExprKind::SetTime,
-            Expr::SetOption { .. } => ExprKind::SetOption,
-            Expr::TCUClose(_) => ExprKind::TCUClose,
-            Expr::TCUOpen(_) => ExprKind::TCUOpen,
-            Expr::TCUTest { .. } => ExprKind::TCUTest,
-            Expr::PrinterSet(_) => ExprKind::PrinterSet,
-            Expr::PrinterTest { .. } => ExprKind::PrinterTest,
-            Expr::IssueTest(_) => ExprKind::IssueTest,
-            Expr::TestResult { .. } => ExprKind::TestResult,
-            Expr::USBOpen => ExprKind::USBOpen,
-            Expr::USBClose => ExprKind::USBClose,
-            Expr::USBPrint(_) => ExprKind::USBPrint,
-            Expr::USBSetTimeFormat(_) => ExprKind::USBSetTimeFormat,
-            Expr::USBSetTime => ExprKind::USBSetTime,
-            Expr::USBSetOption { .. } => ExprKind::USBSetOption,
-            Expr::USBPrinterSet(_) => ExprKind::USBPrinterSet,
-            Expr::USBPrinterTest { .. } => ExprKind::USBPrinterTest,
+#[cfg(test)]
+impl From<Expr> for ParsedExpr {
+    fn from(expr: Expr) -> Self {
+        ParsedExpr {
+            expr,
+            span: Range::default(),
         }
+    }
+}
+
+#[cfg(test)]
+impl From<Expr> for Box<ParsedExpr> {
+    fn from(expr: Expr) -> Self {
+        Box::new(ParsedExpr {
+            expr,
+            span: Range::default(),
+        })
     }
 }
 
