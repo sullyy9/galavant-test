@@ -1,44 +1,9 @@
 use std::{borrow::Borrow, ops::Range};
 
+use super::kind::ExprKind;
+
 ////////////////////////////////////////////////////////////////
 // types
-////////////////////////////////////////////////////////////////
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ExprKind {
-    String,
-    UInt,
-
-    ScriptComment,
-
-    HPMode,
-    Comment,
-    Wait,
-    OpenDialog,
-    WaitDialog,
-    Flush,
-    Protocol,
-    Print,
-    SetTimeFormat,
-    SetTime,
-    SetOption,
-    TCUClose,
-    TCUOpen,
-    TCUTest,
-    PrinterSet,
-    PrinterTest,
-    IssueTest,
-    TestResult,
-    USBOpen,
-    USBClose,
-    USBPrint,
-    USBSetTimeFormat,
-    USBSetTime,
-    USBSetOption,
-    USBPrinterSet,
-    USBPrinterTest,
-}
-
 ////////////////////////////////////////////////////////////////
 
 #[derive(PartialEq, Clone, Debug)]
@@ -223,6 +188,10 @@ impl ParsedExpr {
         &self.expr
     }
 
+    pub fn expression_kind(&self) -> ExprKind {
+        ExprKind::from(&self.expr)
+    }
+
     pub fn span(&self) -> &Range<usize> {
         &self.span
     }
@@ -236,46 +205,6 @@ impl std::cmp::PartialEq for ParsedExpr {
     fn eq(&self, other: &Self) -> bool {
         // Only compare the expression kind. Makes testing much easier.
         self.expr == other.expr
-    }
-}
-
-////////////////////////////////////////////////////////////////
-
-impl ExprKind {
-    pub fn name(&self) -> &'static str {
-        match self {
-            ExprKind::String => "String",
-            ExprKind::UInt => "Unsigned Integer",
-
-            ExprKind::ScriptComment => "Script Comment",
-
-            ExprKind::HPMode => "Command: 'HPMODE'",
-            ExprKind::Comment => "Command: 'COMMENT'",
-            ExprKind::Wait => "Command: 'WAIT'",
-            ExprKind::OpenDialog => "Command: 'OPENDIALOG'",
-            ExprKind::WaitDialog => "Command: 'WAITDIALOG'",
-            ExprKind::Flush => "Command: 'FLUSH'",
-            ExprKind::Protocol => "Command: 'PROTOCOL'",
-            ExprKind::Print => "Command: 'PRINT'",
-            ExprKind::SetTimeFormat => "Command: 'SETTIMEFORMAT'",
-            ExprKind::SetTime => "Command: 'SETTIME'",
-            ExprKind::SetOption => "Command: 'SETOPTION'",
-            ExprKind::TCUClose => "Command: 'TCUCLOSE'",
-            ExprKind::TCUOpen => "Command: 'TCUOPEN'",
-            ExprKind::TCUTest => "Command: 'TCUTEST'",
-            ExprKind::PrinterSet => "Command: 'PRINTERSET'",
-            ExprKind::PrinterTest => "Command: 'PRINTERTEST'",
-            ExprKind::IssueTest => "Command: 'ISSUETEST'",
-            ExprKind::TestResult => "Command: 'TESTRESULT'",
-            ExprKind::USBOpen => "Command: 'USBOPEN'",
-            ExprKind::USBClose => "Command: 'USBCLOSE'",
-            ExprKind::USBPrint => "Command: 'USBPRINT'",
-            ExprKind::USBSetTimeFormat => "Command: 'USBSETTIMEFORMAT'",
-            ExprKind::USBSetTime => "Command: 'USBSETTIME'",
-            ExprKind::USBSetOption => "Command: 'USBSETOPTION'",
-            ExprKind::USBPrinterSet => "Command: 'USBPRINTERSET'",
-            ExprKind::USBPrinterTest => "Command: 'USBPRINTERTEST'",
-        }
     }
 }
 

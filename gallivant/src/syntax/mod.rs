@@ -10,7 +10,7 @@ mod state;
 
 pub use error::{Error, ErrorReason};
 pub use evaluate::evaluate;
-pub use expression::{ParsedExpr, Expr};
+pub use expression::{Expr, ParsedExpr};
 pub use parse::parse_from_str;
 pub use state::EvalState;
 
