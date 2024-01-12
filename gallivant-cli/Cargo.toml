@@ -9,4 +9,5 @@ edition = "2021"
 ariadne = "0.3.0"
 clap = { version = "4.4.11", features = ["derive"] }
 gallivant = { path = "../gallivant" }
+gallivant-serial = { path = "../gallivant-serial" }
 serialport = "4.3.0"

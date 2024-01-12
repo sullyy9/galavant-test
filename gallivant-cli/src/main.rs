@@ -1,7 +1,3 @@
-mod args;
-mod mock;
-mod port;
-
 use std::{
     io::{ErrorKind, Write},
     time::Duration,
@@ -12,8 +8,10 @@ use clap::Parser;
 use serialport::{self, SerialPort};
 
 use gallivant::{FrontendRequest, Interpreter, Transaction, TransactionStatus};
+use gallivant_serial::{CommPort, MockTCUPort};
 
-use self::{args::Args, mock::MockTCUPort, port::CommPort};
+mod args;
+use args::Args;
 
 ////////////////////////////////////////////////////////////////
 
@@ -39,16 +37,18 @@ impl From<gallivant::Error> for Error {
 fn main() {
     let args = Args::parse();
 
-    let mut tcu: Option<Box<dyn SerialPort>> = match args.tcu {
-        Some(port) if port == "mock" => Some(Box::new(MockTCUPort::new())),
-        Some(port) => Some(
-            serialport::new(port, 9600)
-                .timeout(Duration::from_millis(100))
-                .open()
-                .expect("Failed to open TCU port"),
-        ),
-        None => None,
-    };
+    let mut tcu = args.tcu.map(|port| {
+        if port == "mock" {
+            CommPort::Open(Box::new(MockTCUPort::new()))
+        } else {
+            CommPort::from(
+                serialport::new(port, 9600)
+                    .timeout(Duration::from_millis(100))
+                    .open()
+                    .expect("Failed to open TCU port"),
+            )
+        }
+    });
 
     let mut printer = args.printer.map(|port| {
         CommPort::from(serialport::new(port, 9600).timeout(Duration::from_millis(100)))
@@ -83,7 +83,7 @@ fn main() {
 fn run_script(
     interpreter: Interpreter,
     debug: bool,
-    tcu: &mut Option<Box<dyn SerialPort>>,
+    tcu: &mut Option<CommPort>,
     printer: &mut Option<CommPort>,
 ) -> Result<(), Error> {
     for current_request in interpreter {
@@ -102,7 +102,7 @@ fn run_script(
 fn handle_request(
     request: FrontendRequest,
     debug: bool,
-    tcu: &mut Option<Box<dyn SerialPort>>,
+    tcu: &mut Option<CommPort>,
     printer: &mut Option<CommPort>,
 ) -> Result<Option<FrontendRequest>, Error> {
     if debug {
@@ -144,15 +144,15 @@ fn handle_request(
         },
 
         FrontendRequest::TCUTransact(transaction) => {
-            if let Some(port) = tcu {
-                handle_transaction(transaction, port)?;
+            if let Some(CommPort::Open(tcu)) = tcu {
+                handle_transaction(transaction, tcu)?;
             } else {
                 panic!("TCU port required but none given");
             }
         }
 
         FrontendRequest::TCUFlush => {
-            if let Some(tcu) = tcu {
+            if let Some(CommPort::Open(tcu)) = tcu {
                 tcu.flush().expect("TCU transmit error");
                 let mut buffer = Vec::new();
                 match tcu.read_to_end(&mut buffer) {
