@@ -51,7 +51,7 @@ fn main() {
     });
 
     let mut printer = args.printer.map(|port| {
-        CommPort::from(serialport::new(port, 9600).timeout(Duration::from_millis(100)))
+        CommPort::from(CommPort::builder(port, 9600).timeout(Duration::from_millis(100)))
     });
 
     let script = std::fs::read_to_string(&args.script).expect("Failed to read script");

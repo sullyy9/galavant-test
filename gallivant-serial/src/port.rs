@@ -1,16 +1,34 @@
 use std::time::Duration;
 
-use serialport::{self, Error, ErrorKind, SerialPort, SerialPortBuilder};
+use serialport::{
+    self, DataBits, Error, ErrorKind, FlowControl, Parity, SerialPort, SerialPortBuilder, StopBits,
+};
 
 ////////////////////////////////////////////////////////////////
 // types
+////////////////////////////////////////////////////////////////
+
+/// Re-implementation of serialport::SerialPortBuilder because we would like provide read access to
+/// the fields please and thank you.
+///
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommPortBuilder {
+    path: String,
+    baud_rate: u32,
+    data_bits: DataBits,
+    flow_control: FlowControl,
+    parity: Parity,
+    stop_bits: StopBits,
+    timeout: Duration,
+}
+
 ////////////////////////////////////////////////////////////////
 
 /// Wrapper around SerialPort to allow opening and closing a port on the fly.
 ///
 #[derive(Debug)]
 pub enum CommPort {
-    Closed(SerialPortBuilder),
+    Closed(CommPortBuilder),
     Open(Box<dyn SerialPort>),
 }
 
@@ -19,10 +37,17 @@ pub enum CommPort {
 ////////////////////////////////////////////////////////////////
 
 impl CommPort {
+    pub fn builder<'a>(
+        path: impl Into<std::borrow::Cow<'a, str>>,
+        baud_rate: u32,
+    ) -> CommPortBuilder {
+        CommPortBuilder::new(path, baud_rate)
+    }
+
     pub fn open(&mut self) -> Result<(), Error> {
         match self {
             Self::Closed(port) => {
-                *self = Self::Open(port.clone().open()?);
+                *self = Self::Open(SerialPortBuilder::from(port.clone()).open()?);
                 Ok(())
             }
             Self::Open(_) => Ok(()),
@@ -33,13 +58,7 @@ impl CommPort {
         match self {
             Self::Closed(_) => Ok(()),
             Self::Open(port) => {
-                *self = Self::Closed(
-                    serialport::new(
-                        port.name().expect("Failed to get port name"),
-                        port.baud_rate()?,
-                    )
-                    .timeout(Duration::from_millis(100)),
-                );
+                *self = Self::Closed(CommPortBuilder::from_serial_port(port.as_ref())?);
                 Ok(())
             }
         }
@@ -48,13 +67,118 @@ impl CommPort {
 
 ////////////////////////////////////////////////////////////////
 
-impl From<SerialPortBuilder> for CommPort {
-    fn from(port: SerialPortBuilder) -> Self {
-        Self::Closed(port)
+impl From<CommPortBuilder> for SerialPortBuilder {
+    fn from(builder: CommPortBuilder) -> Self {
+        serialport::new(builder.path, builder.baud_rate)
+            .data_bits(builder.data_bits)
+            .flow_control(builder.flow_control)
+            .parity(builder.parity)
+            .stop_bits(builder.stop_bits)
+            .timeout(builder.timeout)
     }
 }
 
 ////////////////////////////////////////////////////////////////
+
+impl CommPortBuilder {
+    pub fn new<'a>(path: impl Into<std::borrow::Cow<'a, str>>, baud_rate: u32) -> Self {
+        CommPortBuilder {
+            path: path.into().into_owned(),
+            baud_rate,
+            data_bits: DataBits::Eight,
+            flow_control: FlowControl::None,
+            parity: Parity::None,
+            stop_bits: StopBits::One,
+            timeout: Duration::from_millis(0),
+        }
+    }
+
+    fn from_serial_port(port: &dyn SerialPort) -> Result<Self, serialport::Error> {
+        let Some(port_name) = port.name() else {
+            return Err(Error::new(
+                ErrorKind::NoDevice,
+                "Path cannot be recovered from serial port",
+            ));
+        };
+
+        Ok(CommPortBuilder {
+            path: port_name,
+            baud_rate: port.baud_rate()?,
+            data_bits: port.data_bits()?,
+            flow_control: port.flow_control()?,
+            parity: port.parity()?,
+            stop_bits: port.stop_bits()?,
+            timeout: port.timeout(),
+        })
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+impl CommPortBuilder {
+    /// Set the path to the serial port
+    #[must_use]
+    pub fn path<'a>(mut self, path: impl Into<std::borrow::Cow<'a, str>>) -> Self {
+        self.path = path.into().as_ref().to_owned();
+        self
+    }
+
+    /// Set the baud rate in symbols-per-second
+    #[must_use]
+    pub fn baud_rate(mut self, baud_rate: u32) -> Self {
+        self.baud_rate = baud_rate;
+        self
+    }
+
+    /// Set the number of bits used to represent a character sent on the line
+    #[must_use]
+    pub fn data_bits(mut self, data_bits: DataBits) -> Self {
+        self.data_bits = data_bits;
+        self
+    }
+
+    /// Set the type of signalling to use for controlling data transfer
+    #[must_use]
+    pub fn flow_control(mut self, flow_control: FlowControl) -> Self {
+        self.flow_control = flow_control;
+        self
+    }
+
+    /// Set the type of parity to use for error checking
+    #[must_use]
+    pub fn parity(mut self, parity: Parity) -> Self {
+        self.parity = parity;
+        self
+    }
+
+    /// Set the number of bits to use to signal the end of a character
+    #[must_use]
+    pub fn stop_bits(mut self, stop_bits: StopBits) -> Self {
+        self.stop_bits = stop_bits;
+        self
+    }
+
+    /// Set the amount of time to wait to receive data before timing out
+    #[must_use]
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    pub fn build(self) -> CommPort {
+        CommPort::from(self)
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+impl<T: Into<CommPortBuilder>> From<T> for CommPort {
+    fn from(port: T) -> Self {
+        Self::Closed(port.into())
+    }
+}
+
+////////////////////////////////////////////////////////////////ru
 
 impl From<Box<dyn SerialPort>> for CommPort {
     fn from(port: Box<dyn SerialPort>) -> Self {
@@ -101,49 +225,49 @@ impl std::io::Write for CommPort {
 impl SerialPort for CommPort {
     fn name(&self) -> Option<String> {
         match self {
-            CommPort::Closed(_) => None,
+            CommPort::Closed(port) => Some(port.path.clone()),
             CommPort::Open(port) => port.name(),
         }
     }
 
     fn baud_rate(&self) -> serialport::Result<u32> {
         match self {
-            CommPort::Closed(_) => Err(Error::new(ErrorKind::NoDevice, "Port closed")),
+            CommPort::Closed(port) => Ok(port.baud_rate),
             CommPort::Open(port) => port.baud_rate(),
         }
     }
 
     fn data_bits(&self) -> serialport::Result<serialport::DataBits> {
         match self {
-            CommPort::Closed(_) => Err(Error::new(ErrorKind::NoDevice, "Port closed")),
+            CommPort::Closed(port) => Ok(port.data_bits),
             CommPort::Open(port) => port.data_bits(),
         }
     }
 
     fn flow_control(&self) -> serialport::Result<serialport::FlowControl> {
         match self {
-            CommPort::Closed(_) => Err(Error::new(ErrorKind::NoDevice, "Port closed")),
+            CommPort::Closed(port) => Ok(port.flow_control),
             CommPort::Open(port) => port.flow_control(),
         }
     }
 
     fn parity(&self) -> serialport::Result<serialport::Parity> {
         match self {
-            CommPort::Closed(_) => Err(Error::new(ErrorKind::NoDevice, "Port closed")),
+            CommPort::Closed(port) => Ok(port.parity),
             CommPort::Open(port) => port.parity(),
         }
     }
 
     fn stop_bits(&self) -> serialport::Result<serialport::StopBits> {
         match self {
-            CommPort::Closed(_) => Err(Error::new(ErrorKind::NoDevice, "Port closed")),
+            CommPort::Closed(port) => Ok(port.stop_bits),
             CommPort::Open(port) => port.stop_bits(),
         }
     }
 
     fn timeout(&self) -> Duration {
         match self {
-            CommPort::Closed(_) => Duration::from_secs(0),
+            CommPort::Closed(port) => port.timeout,
             CommPort::Open(port) => port.timeout(),
         }
     }
