@@ -100,22 +100,9 @@ impl Transaction {
         }
 
         let response = {
-            let mut buffer = Vec::new();
-
-            loop {
-                let mut byte = [0; 64];
-                match port.read(&mut byte) {
-                    Ok(0) => break,
-                    Ok(count) => buffer.extend_from_slice(&byte[0..count]),
-
-                    Err(error) => match error.kind() {
-                        io::ErrorKind::TimedOut => break,
-                        _ => return Err(into_io_error(error)),
-                    },
-                }
-            }
-
-            buffer
+            let mut buffer = [0; 256];
+            let count = port.read(&mut buffer).map_err(into_io_error)?;
+            buffer[0..count].to_owned()
         };
 
         self.response.extend_from_slice(&response);

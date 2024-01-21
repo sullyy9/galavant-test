@@ -10,7 +10,8 @@ use serialport::{
 
 /// Re-implementation of serialport::SerialPortBuilder because we would like provide read access to
 /// the fields please and thank you.
-///
+/// Unlike serialport::SerialPortBuilder, this doesn't allow changing the timeout period as we use
+/// that internally to determine if the stream is empty or not when reading from it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommPortBuilder {
     path: String,
@@ -89,7 +90,7 @@ impl CommPortBuilder {
             flow_control: FlowControl::None,
             parity: Parity::None,
             stop_bits: StopBits::One,
-            timeout: Duration::from_millis(0),
+            timeout: Duration::from_millis(1),
         }
     }
 
@@ -158,13 +159,6 @@ impl CommPortBuilder {
         self
     }
 
-    /// Set the amount of time to wait to receive data before timing out
-    #[must_use]
-    pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
-    }
-
     pub fn build(self) -> CommPort {
         CommPort::from(self)
     }
@@ -197,7 +191,28 @@ impl std::io::Read for CommPort {
                 ErrorKind::NoDevice,
                 "Port closed",
             ))),
-            CommPort::Open(port) => port.read(buf),
+            CommPort::Open(port) => {
+                // There's no guarantee that there'll be a termination character in the stream so
+                // we need to read one byte at a time and use timeout to determine if the stream's
+                // empty. Otherwise we'll either get a timeout error or get blocked here forever if
+                // no timeout is set.
+                let mut count = 0;
+                for byte in buf {
+                    let mut byte_read = [0; 1];
+                    match port.read(&mut byte_read) {
+                        Ok(_) => {
+                            *byte = byte_read[0];
+                            count += 1;
+                        }
+                        Err(error) => match error.kind() {
+                            std::io::ErrorKind::TimedOut => break,
+                            _ => return Err(error),
+                        },
+                    }
+                }
+
+                Ok(count)
+            }
         }
     }
 }
@@ -325,14 +340,10 @@ impl SerialPort for CommPort {
         }
     }
 
-    fn set_timeout(&mut self, timeout: Duration) -> serialport::Result<()> {
-        match self {
-            CommPort::Closed(port) => {
-                *port = port.clone().timeout(timeout);
-                Ok(())
-            }
-            CommPort::Open(port) => port.set_timeout(timeout),
-        }
+    /// Changing timeout is not allowed >:(
+    /// It's required to internally to make reading more erganomic.
+    fn set_timeout(&mut self, _: Duration) -> serialport::Result<()> {
+        Ok(())
     }
 
     fn write_request_to_send(&mut self, level: bool) -> serialport::Result<()> {
